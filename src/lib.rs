@@ -1,15 +1,30 @@
+#![cfg_attr(feature = "docs", feature(doc_cfg))]
+
 #[macro_use]
 extern crate derive_more;
 #[macro_use]
 extern crate xiayu_derive;
 
+#[cfg(not(any(
+    feature = "sqlite",
+    feature = "postgresql",
+    feature = "mysql",
+    feature = "mssql"
+)))]
+compile_error!("one of 'sqlite', 'postgresql', 'mysql' or 'mssql' features must be enabled");
+
+#[cfg(feature = "bigdecimal")]
+extern crate bigdecimal as bigdecimal;
+
 #[macro_use]
 mod macros;
 #[macro_use]
 pub mod visitors;
-
 pub mod ast;
 pub mod error;
+#[cfg(feature = "serde")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "serde")))]
+pub mod serde;
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 

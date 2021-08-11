@@ -3,24 +3,71 @@ name = "xiayu"
 version = "0.1.0"
 edition = "2018"
 
+[package.metadata.docs.rs]
+features = ["docs", "all"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "xiayu"
 
 [dependencies]
 xiayu-derive = { version = "0.1.0", path = "./derive" }
-derive_more = { version = "0.99.16", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
-thiserror = "1.0.26"
-either = "1.6.1"
-tracing = "0.1.26"
-hex = "0.4.3"
+
+thiserror = "1.0"
+tracing = "0.1"
+hex = "0.4"
+sqlx = { version = "0.5" }
+either = { version = "1.6", optional = true }
+serde_json = { version = "1.0", optional = true }
+base64 = { version = "0.13", optional = true }
+uuid_ = { version = "0.8", package = "uuid", optional = true }
+chrono_ = { version = "0.4", package = "chrono", optional = true }
+serde_ = { version = "1.0", package = "serde", optional = true }
+num-bigint = { version = "0.4", optional = true }
+bigdecimal_ = { version = "0.2", package = "bigdecimal", optional = true }
+derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
 
 [features]
-default = [ "mysql", "postgresql" ]
-# mssql = []
-mysql = []
-sqlite = []
-postgresql = []
+default = [ "mysql", "sqlite", "postgresql" ]
+docs = []
+tls = [ "sqlx/tls" ]
+any = [ "sqlx/any" ]
+uuid = [ "uuid_", "sqlx/uuid" ]
+json = [ "serde", "serde_json", "base64", "sqlx/json" ]
+serde = [ "serde_", "chrono/serde" ]
+chrono = [ "chrono_", "sqlx/chrono" ]
+mssql = [ "uuid", "chrono", "either", "sqlx/mssql" ]
+mysql = [ "sqlx/mysql" ]
+sqlite = [ "sqlx/sqlite" ]
+postgre = [ "sqlx/postgres" ]
+bigdecimal = [ "bigdecimal_", "num-bigint", "sqlx/bigdecimal" ]
+tokio-rustls = [ "sqlx/runtime-tokio-rustls" ]
+tokio-native-tls = [ "sqlx/runtime-tokio-native-tls" ]
+async-std-rustls = [ "sqlx/runtime-async-std-rustls" ]
+async-std-native-tls = [ "sqlx/runtime-async-std-native-tls" ]
+actix-rustls = [ "sqlx/runtime-actix-rustls" ]
+actix-native-tls = [ "sqlx/runtime-actix-native-tls" ]
+
+all = [
+    "any",
+    "tls",
+    "json",
+    "uuid",
+    "serde",
+    "chrono",
+    #"mssql",
+    "mysql",
+    "serde",
+    "sqlite",
+    "postgres",
+    "bigdecimal",
+    "async-std-rustls",
+    "async-std-native-tls",
+    "tokio-rustls",
+    "tokio-native-tls",
+    "actix-rustls",
+    "actix-native-tls",
+]
 
 [workspace]
 members = [

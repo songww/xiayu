@@ -10,7 +10,7 @@
 mod mssql;
 #[cfg(feature = "mysql")]
 mod mysql;
-#[cfg(feature = "postgresql")]
+#[cfg(feature = "postgres")]
 mod postgres;
 #[cfg(feature = "sqlite")]
 mod sqlite;
@@ -19,7 +19,7 @@ mod sqlite;
 pub use self::mssql::Mssql;
 #[cfg(feature = "mysql")]
 pub use self::mysql::Mysql;
-#[cfg(feature = "postgresql")]
+#[cfg(feature = "postgres")]
 pub use self::postgres::Postgres;
 #[cfg(feature = "sqlite")]
 pub use self::sqlite::Sqlite;

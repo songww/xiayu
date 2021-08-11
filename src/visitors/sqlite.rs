@@ -122,7 +122,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
 
                     self.write(" (")?;
                     for (i, c) in insert.columns.into_iter().enumerate() {
-                        self.visit_column(c.name.into_owned().into())?;
+                        self.visit_column(c)?;
 
                         if i < (columns - 1) {
                             self.write(", ")?;
@@ -142,7 +142,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
 
                 self.write(" (")?;
                 for (i, c) in insert.columns.into_iter().enumerate() {
-                    self.visit_column(c.name.into_owned().into())?;
+                    self.visit_column(c)?;
 
                     if i < (columns - 1) {
                         self.write(", ")?;

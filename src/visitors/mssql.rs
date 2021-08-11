@@ -97,7 +97,7 @@ impl<'a> Mssql<'a> {
             let columns_len = columns.len();
 
             for (i, column) in columns.into_iter().enumerate() {
-                this.visit_column(Column::from(column.name.into_owned()))?;
+                this.visit_column(Column::from(column))?;
                 this.write(" ")?;
 
                 match column.type_family {
@@ -135,7 +135,7 @@ impl<'a> Mssql<'a> {
         self.write("SELECT ")?;
 
         for (i, col) in columns.into_iter().enumerate() {
-            self.visit_column(Column::from(col.name.into_owned()).table("t"))?;
+            self.visit_column(col.table("t"))?;
 
             if i < (col_len - 1) {
                 self.write(",")?;
