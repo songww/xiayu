@@ -298,7 +298,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         }
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> visitors::Result {
         if json_extract.extract_as_string {
             self.write("JSON_UNQUOTE(")?;
@@ -309,7 +309,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         self.write(", ")?;
 
         match json_extract.path.clone() {
-            #[cfg(feature = "postgresql")]
+            #[cfg(feature = "postgres")]
             JsonPath::Array(_) => panic!("JSON path array notation is not supported for MySQL"),
             JsonPath::String(path) => self.visit_parameterized(Value::text(path))?,
         }
@@ -323,7 +323,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -343,7 +343,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -369,7 +369,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -397,7 +397,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         left: Expression<'a>,

@@ -29,7 +29,7 @@ pub struct MultiRowInsert<'a> {
 /// `INSERT` conflict resolution strategies.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OnConflict {
-    /// When a row already exists, do nothing. Works with PostgreSQL, MySQL or
+    /// When a row already exists, do nothing. Works with postgres, MySQL or
     /// SQLite without schema information.
     ///
     /// ```rust
@@ -229,10 +229,10 @@ impl<'a> Insert<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(any(feature = "postgresql", feature = "mssql", feature = "sqlite"))]
+    #[cfg(any(feature = "postgres", feature = "mssql", feature = "sqlite"))]
     #[cfg_attr(
         feature = "docs",
-        doc(cfg(any(feature = "postgresql", feature = "mssql", feature = "sqlite")))
+        doc(cfg(any(feature = "postgres", feature = "mssql", feature = "sqlite")))
     )]
     pub fn returning<K, I>(mut self, columns: I) -> Self
     where

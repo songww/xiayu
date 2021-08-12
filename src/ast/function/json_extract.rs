@@ -3,7 +3,7 @@ use crate::ast::Expression;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 pub struct JsonExtract<'a> {
     pub(crate) column: Box<Expression<'a>>,
     pub(crate) path: JsonPath<'a>,
@@ -11,15 +11,15 @@ pub struct JsonExtract<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 pub enum JsonPath<'a> {
     #[cfg(feature = "mysql")]
     String(Cow<'a, str>),
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     Array(Vec<Cow<'a, str>>),
 }
 
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 impl<'a> JsonPath<'a> {
     #[cfg(feature = "mysql")]
     pub fn string<S>(string: S) -> JsonPath<'a>
@@ -29,7 +29,7 @@ impl<'a> JsonPath<'a> {
         JsonPath::String(string.into())
     }
 
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     pub fn array<A, V>(array: A) -> JsonPath<'a>
     where
         V: Into<Cow<'a, str>>,
@@ -44,7 +44,7 @@ impl<'a> JsonPath<'a> {
 /// - `String` paths, referring to JSON paths. This is supported by MySQL only.
 /// - `Array` paths, supported by Postgres only.
 ///
-/// For PostgreSQL:
+/// For postgres:
 /// ```rust
 /// # use quaint::{ast::*, visitor::{Visitor, Postgres}};
 /// # fn main() -> Result<(), quaint::error::Error> {
@@ -68,7 +68,7 @@ impl<'a> JsonPath<'a> {
 /// # Ok(())
 /// # }
 /// ```
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 pub fn json_extract<'a, C, P>(column: C, path: P, extract_as_string: bool) -> Function<'a>
 where
     C: Into<Expression<'a>>,

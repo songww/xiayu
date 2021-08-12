@@ -2,10 +2,10 @@ use super::Function;
 use crate::ast::Table;
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgresql")))]
-#[cfg(all(feature = "json", feature = "postgresql"))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg(all(feature = "json", feature = "postgres"))]
 /// A representation of the `ROW_TO_JSON` function in the database.
-/// Only for `Postgresql`
+/// Only for `postgres`
 pub struct RowToJson<'a> {
     pub(crate) expr: Table<'a>,
     pub(crate) pretty_print: bool,
@@ -13,7 +13,7 @@ pub struct RowToJson<'a> {
 
 /// Return the given table in `JSON` format.
 ///
-/// Only available for `Postgresql`
+/// Only available for `postgres`
 ///
 /// ```no_run
 /// # use quaint::{ast::*, prelude::Queryable, visitor::{Visitor, Postgres}, single::Quaint, val};
@@ -39,8 +39,8 @@ pub struct RowToJson<'a> {
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgresql")))]
-#[cfg(all(feature = "json", feature = "postgresql"))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg(all(feature = "json", feature = "postgres"))]
 pub fn row_to_json<'a, T>(expr: T, pretty_print: bool) -> Function<'a>
 where
     T: Into<Table<'a>>,

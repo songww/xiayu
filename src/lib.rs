@@ -7,11 +7,11 @@ extern crate xiayu_derive;
 
 #[cfg(not(any(
     feature = "sqlite",
-    feature = "postgresql",
+    feature = "postgres",
     feature = "mysql",
     feature = "mssql"
 )))]
-compile_error!("one of 'sqlite', 'postgresql', 'mysql' or 'mssql' features must be enabled");
+compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
 #[cfg(feature = "bigdecimal")]
 extern crate bigdecimal as bigdecimal;

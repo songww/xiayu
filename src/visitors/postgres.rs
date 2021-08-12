@@ -4,11 +4,11 @@ use crate::{
 };
 use std::fmt::{self, Write};
 
-/// A visitor to generate queries for the PostgreSQL database.
+/// A visitor to generate queries for the postgres database.
 ///
 /// The returned parameter values implement the `ToSql` trait from postgres and
 /// can be used directly with the database.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgresql")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
 pub struct Postgres<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -275,7 +275,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> visitors::Result {
         match json_extract.path {
             #[cfg(feature = "mysql")]
@@ -310,7 +310,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         }
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -332,7 +332,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -354,7 +354,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -376,7 +376,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         left: Expression<'a>,
@@ -785,6 +785,19 @@ mod tests {
 
     #[test]
     fn join_is_inserted_positionally() {
+        #[derive(Entity)]
+        #[tablename = "User"]
+        struct User {
+            #[column(primary_key)]
+            id: i32,
+        }
+        #[derive(Entity)]
+        #[tablename = "User"]
+        struct Post {
+            #[column(primary_key)]
+            id: i32,
+            userId: i32,
+        }
         let joined_table = Table::from("User").left_join(
             "Post"
                 .alias("p")

@@ -1,4 +1,4 @@
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 use super::compare::{JsonCompare, JsonType};
 use crate::ast::*;
 use query::SelectQuery;
@@ -421,7 +421,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::Raw(Box::new(self), raw_comparator.into(), Box::new(right.into()))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -429,7 +429,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayContains(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -437,7 +437,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayNotContains(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -445,7 +445,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayBeginsWith(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -453,7 +453,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayNotBeginsWith(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -461,7 +461,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayEndsInto(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -469,7 +469,7 @@ impl<'a> Comparable<'a> for Expression<'a> {
         Compare::JsonCompare(JsonCompare::ArrayNotEndsInto(Box::new(self), Box::new(item.into())))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_type_equals<T>(self, json_type: T) -> Compare<'a>
     where
         T: Into<JsonType>,

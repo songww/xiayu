@@ -1,5 +1,5 @@
 use super::Visitor;
-#[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 use crate::prelude::{JsonExtract, JsonType};
 use crate::{
     ast::Value,
@@ -613,12 +613,12 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, _json_extract: JsonExtract<'a>) -> visitors::Result {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         _left: Expression<'a>,
@@ -628,7 +628,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         _left: Expression<'a>,
@@ -638,7 +638,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         _left: Expression<'a>,
@@ -648,7 +648,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgresql", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         _left: Expression<'a>,
