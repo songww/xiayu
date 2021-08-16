@@ -185,13 +185,7 @@ struct Dual {
 }
 
 impl crate::prelude::Entity for Dual {
-    type PrimaryKey = crate::prelude::ColumnOptions<i32>;
     const COLUMNS: &'static [Column<'static>] = &[];
-    fn primary_key() -> Self::PrimaryKey {
-        crate::prelude::ColumnOptions::new(
-            "id", "dual", true, true, None, None, false, None, false, None,
-        )
-    }
 
     fn tablename() -> &'static str {
         "dual"
@@ -208,5 +202,14 @@ impl crate::prelude::Entity for Dual {
             database: None,
             index_definitions: Vec::new(),
         }
+    }
+}
+
+impl crate::prelude::HasPrimaryKey for Dual {
+    type PrimaryKey = crate::prelude::ColumnOptions<i32>;
+    fn primary_key() -> Self::PrimaryKey {
+        crate::prelude::ColumnOptions::new(
+            "id", "dual", true, true, None, None, false, None, false, None,
+        )
     }
 }

@@ -28,7 +28,7 @@ bigdecimal_ = { version = "0.2", package = "bigdecimal", optional = true }
 derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
 
 [features]
-default = [ ]
+default = [ "tokio-rustls", "postgres" ]
 docs = []
 tls = [ "sqlx/tls" ]
 any = [ "sqlx/any" ]

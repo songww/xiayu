@@ -400,7 +400,20 @@ impl<'a> Visitor<'a> for Postgres<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::visitor::*;
+    use crate::{prelude::*, visitors::*};
+    use xiayu_derive::*;
+
+    #[derive(Entity)]
+    struct User {
+        #[column(primary_key)]
+        id: i32,
+        foo: i32,
+        #[cfg(feature = "json")]
+        #[column(name = "jsonField")]
+        json: serde_json::Value,
+        #[column(name = "xmlField")]
+        xml: String,
+    }
 
     fn expected_values<'a, T>(sql: &'static str, params: Vec<T>) -> (String, Vec<Value<'a>>)
     where
@@ -424,7 +437,8 @@ mod tests {
 
     #[test]
     fn test_single_row_insert_default_values() {
-        let query = Insert::single_into("users");
+        // let query = User::insert();
+        let query = Insert::single_into(<User as Entity>::table());
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!("INSERT INTO \"users\" DEFAULT VALUES", sql);
@@ -434,7 +448,7 @@ mod tests {
     #[test]
     fn test_single_row_insert() {
         let expected = expected_values("INSERT INTO \"users\" (\"foo\") VALUES ($1)", vec![10]);
-        let query = Insert::single_into("users").value("foo", 10);
+        let query = Insert::single_into(<User as Entity>::table()).value(User::foo, 10);
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -448,8 +462,9 @@ mod tests {
             "INSERT INTO \"users\" (\"foo\") VALUES ($1) RETURNING \"foo\"",
             vec![10],
         );
-        let query = Insert::single_into("users").value("foo", 10);
-        let (sql, params) = Postgres::build(Insert::from(query).returning(vec!["foo"])).unwrap();
+        let query = Insert::single_into(User::table()).value(User::foo, 10);
+        let (sql, params) =
+            Postgres::build(Insert::from(query).returning(vec![User::foo])).unwrap();
 
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
@@ -461,7 +476,7 @@ mod tests {
             "INSERT INTO \"users\" (\"foo\") VALUES ($1), ($2)",
             vec![10, 11],
         );
-        let query = Insert::multi_into("users", vec!["foo"])
+        let query = Insert::multi_into(User::table(), vec![User::foo])
             .values(vec![10])
             .values(vec![11]);
         let (sql, params) = Postgres::build(query).unwrap();
@@ -476,7 +491,7 @@ mod tests {
             "SELECT \"users\".* FROM \"users\" LIMIT $1 OFFSET $2",
             vec![10, 2],
         );
-        let query = Select::from_table("users").limit(10).offset(2);
+        let query = Select::from_table(User::table()).limit(10).offset(2);
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -486,7 +501,7 @@ mod tests {
     #[test]
     fn test_limit_and_offset_when_only_offset_is_set() {
         let expected = expected_values("SELECT \"users\".* FROM \"users\" OFFSET $1", vec![10]);
-        let query = Select::from_table("users").offset(10);
+        let query = Select::from_table(User::table()).offset(10);
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -496,35 +511,61 @@ mod tests {
     #[test]
     fn test_limit_and_offset_when_only_limit_is_set() {
         let expected = expected_values("SELECT \"users\".* FROM \"users\" LIMIT $1", vec![10]);
-        let query = Select::from_table("users").limit(10);
+        let query = Select::from_table(User::table()).limit(10);
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test"]
+    struct TestEntity {
+        // #[column(primary_key)]
+        bar: i32,
+    }
     #[test]
     fn test_distinct() {
         let expected_sql = "SELECT DISTINCT \"bar\" FROM \"test\"";
-        let query = Select::from_table("test")
-            .column(Column::new("bar"))
+        let query = Select::from_table(TestEntity::table())
+            .column(TestEntity::bar)
             .distinct();
         let (sql, _) = Postgres::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test2"]
+    struct SecondTestEntity {
+        //
+    }
+
     #[test]
     fn test_distinct_with_subquery() {
         let expected_sql = "SELECT DISTINCT (SELECT $1 FROM \"test2\"), \"bar\" FROM \"test\"";
-        let query = Select::from_table("test")
-            .value(Select::from_table("test2").value(val!(1)))
-            .column(Column::new("bar"))
+        let query = Select::from_table(TestEntity::table())
+            .value(Select::from_table(SecondTestEntity::table()).value(val!(1)))
+            .column(TestEntity::bar)
             .distinct();
 
         let (sql, _) = Postgres::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
+    }
+
+    #[derive(Entity)]
+    #[tablename = "foo"]
+    struct Foo {
+        baz: String,
+        foo: String,
+    }
+
+    #[derive(Entity)]
+    #[tablename = "baz"]
+    struct Baz {
+        #[column(name = "a")]
+        a_column: i32,
     }
 
     #[test]
@@ -532,10 +573,11 @@ mod tests {
         let expected_sql =
             "SELECT \"foo\".*, \"bar\".\"a\" FROM \"foo\", (SELECT \"a\" FROM \"baz\") AS \"bar\"";
         let query = Select::default()
-            .and_from("foo")
-            .and_from(Table::from(Select::from_table("baz").column("a")).alias("bar"))
-            .value(Table::from("foo").asterisk())
-            .column(("bar", "a"));
+            .and_from(
+                Table::from(Select::from_table(Baz::table()).column(Baz::a_column)).alias("bar"),
+            )
+            .value(Foo::table().asterisk())
+            .column(Baz::a_column);
 
         let (sql, _) = Postgres::build(query).unwrap();
         assert_eq!(expected_sql, sql);
@@ -549,8 +591,8 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("jsonField").equals(serde_json::json!({"a":"b"})));
+        let query = Select::from_table(User::table())
+            .so_that(User::json.equals(serde_json::json!({"a":"b"})));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -567,8 +609,7 @@ mod tests {
         );
 
         let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
-        let query =
-            Select::from_table("users").so_that(value_expr.equals(Column::from("jsonField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -583,8 +624,8 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("jsonField").not_equals(serde_json::json!({"a":"b"})));
+        let query = Select::from_table(User::table())
+            .so_that(User::json.not_equals(serde_json::json!({"a":"b"})));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -615,8 +656,8 @@ mod tests {
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("xmlField").equals(Value::xml("<salad>wurst</salad>")));
+        let query = Select::from_table(User::table())
+            .so_that(User::xml.equals(Value::xml("<salad>wurst</salad>")));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -631,8 +672,7 @@ mod tests {
         );
 
         let value_expr: Expression = Value::xml("<salad>wurst</salad>").into();
-        let query =
-            Select::from_table("users").so_that(value_expr.equals(Column::from("xmlField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.equals(User::xml));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -646,8 +686,8 @@ mod tests {
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("xmlField").not_equals(Value::xml("<salad>wurst</salad>")));
+        let query = Select::from_table(User::table())
+            .so_that(User::xml.not_equals(Value::xml("<salad>wurst</salad>")));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -662,8 +702,7 @@ mod tests {
         );
 
         let value_expr: Expression = Value::xml("<salad>wurst</salad>").into();
-        let query =
-            Select::from_table("users").so_that(value_expr.not_equals(Column::from("xmlField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.not_equals(User::xml));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -762,18 +801,19 @@ mod tests {
 
     #[test]
     fn test_raw_comparator() {
-        let (sql, _) =
-            Postgres::build(Select::from_table("foo").so_that("bar".compare_raw("ILIKE", "baz%")))
-                .unwrap();
+        let (sql, _) = Postgres::build(
+            Select::from_table(Foo::table()).so_that(Foo::baz.clone().compare_raw("ILIKE", "baz%")),
+        )
+        .unwrap();
 
         assert_eq!(r#"SELECT "foo".* FROM "foo" WHERE "bar" ILIKE $1"#, sql);
     }
 
     #[test]
     fn test_default_insert() {
-        let insert = Insert::single_into("foo")
-            .value("foo", "bar")
-            .value("baz", default_value());
+        let insert = Insert::single_into(Foo::table())
+            .value(Foo::foo.clone(), "bar")
+            .value(Foo::baz.clone(), default_value());
 
         let (sql, _) = Postgres::build(insert).unwrap();
 
@@ -792,18 +832,22 @@ mod tests {
             id: i32,
         }
         #[derive(Entity)]
-        #[tablename = "User"]
+        #[tablename = "Post"]
         struct Post {
             #[column(primary_key)]
             id: i32,
-            userId: i32,
+            #[column(name = "userId")]
+            user_id: i32,
         }
-        let joined_table = Table::from("User").left_join(
-            "Post"
-                .alias("p")
-                .on(("p", "userId").equals(Column::from(("User", "id")))),
-        );
-        let q = Select::from_table(joined_table).and_from("Toto");
+        #[derive(Entity)]
+        #[tablename = "Toto"]
+        struct Toto {
+            #[column(primary_key)]
+            id: i32,
+        }
+        let joined_table =
+            User::table().left_join(Post::table().alias("p").on(Post::user_id.equals(User::id)));
+        let q = Select::from_table(joined_table).and_from(Toto::table());
         let (sql, _) = Postgres::build(q).unwrap();
 
         assert_eq!("SELECT \"User\".*, \"Toto\".* FROM \"User\" LEFT JOIN \"Post\" AS \"p\" ON \"p\".\"userId\" = \"User\".\"id\", \"Toto\"", sql);

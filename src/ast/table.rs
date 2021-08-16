@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ast::{Expression, Row, Select, Values},
     error::{Error, ErrorKind},
-    prelude::EntityInstanced,
+    prelude::EntityInstantiated,
 };
 use std::borrow::Cow;
 

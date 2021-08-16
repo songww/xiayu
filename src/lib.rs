@@ -38,19 +38,13 @@ pub mod prelude {
 
     /// select().where(Entity::last_modified == now())
     pub trait Entity {
-        type PrimaryKey;
         const COLUMNS: &'static [Column<'static>];
-        fn primary_key() -> <Self as Entity>::PrimaryKey;
         fn tablename() -> &'static str;
         fn columns() -> &'static [Column<'static>];
         fn table() -> Table<'static>;
     }
 
-    pub trait EntityInstanced: Entity {
-        fn primary_key(&self) -> <Self as Entity>::PrimaryKey {
-            <Self as Entity>::primary_key()
-        }
-
+    pub trait EntityInstantiated: Entity {
         fn tablename(&self) -> &'static str {
             <Self as Entity>::tablename()
         }
@@ -59,12 +53,17 @@ pub mod prelude {
             <Self as Entity>::columns()
         }
 
-        fn table(&self) -> Table<'static> {
-            <Self as Entity>::table()
-        }
+        // fn table(&self) -> Table<'static> {
+        //     <Self as Entity>::table()
+        // }
     }
 
-    impl<T> EntityInstanced for T where T: Entity {}
+    impl<T> EntityInstantiated for T where T: Entity {}
+
+    pub trait HasPrimaryKey: Entity {
+        type PrimaryKey;
+        fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
+    }
 
     #[derive(Clone)]
     pub struct ColumnOptions<T> {
@@ -151,6 +150,47 @@ pub mod prelude {
             options.column()
         }
     }
+
+    impl<'a, T> From<ColumnOptions<T>> for Expression<'a> {
+        fn from(col: ColumnOptions<T>) -> Self {
+            Expression {
+                kind: ExpressionKind::Column(Box::new(col.column())),
+                alias: None,
+            }
+        }
+    }
+
+    impl<'a, T> From<&ColumnOptions<T>> for Expression<'a> {
+        fn from(col: &ColumnOptions<T>) -> Self {
+            Expression {
+                kind: ExpressionKind::Column(Box::new(col.column())),
+                alias: None,
+            }
+        }
+    }
+
+    impl<'a, T> Aliasable<'a> for T
+    where
+        T: Entity,
+    {
+        type Target = Table<'a>;
+
+        fn alias<A>(self, alias: A) -> Self::Target
+        where
+            A: Into<::std::borrow::Cow<'a, str>>,
+        {
+            let mut table = <T as Entity>::table();
+            table.alias.replace(alias.into());
+            table
+        }
+    }
+
+    /*
+    impl<'a> ::xiayu::prelude::Selectable<'a> for #ident {
+        fn select<C: AsRef<&[Column]>>(columns: C) {}
+        //
+    }
+    */
 
     pub struct Many<T>
     where
