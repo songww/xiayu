@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn equality_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE "jsonField"::jsonb = $1"#,
+            r#"SELECT "users".* FROM "users" WHERE "users"."jsonField"::jsonb = $1"#,
             vec![serde_json::json!({"a": "b"})],
         );
 
@@ -609,7 +609,7 @@ mod tests {
     fn equality_with_a_lhs_json_value() {
         // A bit artificial, but checks if the ::jsonb casting is done correctly on the right side as well.
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE $1 = "jsonField"::jsonb"#,
+            r#"SELECT "users".* FROM "users" WHERE $1 = "users"."jsonField"::jsonb"#,
             vec![serde_json::json!({"a": "b"})],
         );
 
@@ -625,7 +625,7 @@ mod tests {
     #[test]
     fn difference_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE "jsonField"::jsonb <> $1"#,
+            r#"SELECT "users".* FROM "users" WHERE "users"."jsonField"::jsonb <> $1"#,
             vec![serde_json::json!({"a": "b"})],
         );
 
@@ -641,13 +641,12 @@ mod tests {
     #[test]
     fn difference_with_a_lhs_json_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE $1 <> "jsonField"::jsonb"#,
+            r#"SELECT "users".* FROM "users" WHERE $1 <> "users"."jsonField"::jsonb"#,
             vec![serde_json::json!({"a": "b"})],
         );
 
         let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
-        let query =
-            Select::from_table("users").so_that(value_expr.not_equals(Column::from("jsonField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.not_equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);

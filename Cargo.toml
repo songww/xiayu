@@ -22,13 +22,13 @@ serde_json = { version = "1.0", optional = true }
 base64 = { version = "0.13", optional = true }
 uuid_ = { version = "0.8", package = "uuid", optional = true }
 chrono_ = { version = "0.4", package = "chrono", optional = true }
-serde_ = { version = "1.0", package = "serde", optional = true }
+serde_ = { version = "1.0", package = "serde", optional = true, features = [ "derive" ] }
 num-bigint = { version = "0.4", optional = true }
 bigdecimal_ = { version = "0.2", package = "bigdecimal", optional = true }
 derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
 
 [features]
-default = [ "tokio-rustls", "postgres" ]
+default = [ "tokio-rustls", "postgres", "json" ]
 docs = []
 tls = [ "sqlx/tls" ]
 any = [ "sqlx/any" ]

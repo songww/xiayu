@@ -22,9 +22,11 @@ mod macros;
 pub mod visitors;
 pub mod ast;
 pub mod error;
+/*
 #[cfg(feature = "serde")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "serde")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
 pub mod serde;
+*/
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 

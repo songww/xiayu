@@ -6,6 +6,7 @@ use crate::{
     ast::Value,
     // connector::{ResultRow, ResultSet},
     error::{Error, ErrorKind},
+    visitors::Visitor,
 };
 use serde::{de::Error as SerdeError, de::*};
 
