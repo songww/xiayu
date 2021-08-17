@@ -1,8 +1,8 @@
+namespaced-features = true
 [package]
 name = "xiayu"
 version = "0.1.0"
 edition = "2018"
-namespaced-features = true
 
 [package.metadata.docs.rs]
 features = ["docs", "all"]
@@ -33,15 +33,15 @@ default = [ "tokio-rustls", "postgres" ]
 docs = []
 tls = [ "sqlx/tls" ]
 any = [ "sqlx/any" ]
-uuid = [ "dep:uuid", "sqlx/uuid" ]
-json = [ "serde", "serde_json", "base64", "sqlx/json" ]
-serde = [ "dep:serde", "chrono/serde" ]
-chrono = [ "dep:chrono", "sqlx/chrono" ]
-mssql = [ "uuid", "chrono", "either", "sqlx/mssql" ]
+uuid-type = [ "uuid", "sqlx/uuid" ]
+json-type = [ "serde", "serde_json", "base64", "sqlx/json" ]
+# serde = [ "dep:serde", "chrono/serde" ]
+chrono-type = [ "chrono", "sqlx/chrono" ]
+mssql = [ "uuid-type", "chrono-type", "either", "sqlx/mssql" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
 postgres = [ "sqlx/postgres" ]
-bigdecimal = [ "dep:bigdecimal", "num-bigint", "sqlx/bigdecimal" ]
+bigdecimal-type = [ "bigdecimal", "num-bigint", "sqlx/bigdecimal" ]
 tokio-rustls = [ "sqlx/runtime-tokio-rustls" ]
 tokio-native-tls = [ "sqlx/runtime-tokio-native-tls" ]
 async-std-rustls = [ "sqlx/runtime-async-std-rustls" ]
@@ -52,16 +52,15 @@ actix-native-tls = [ "sqlx/runtime-actix-native-tls" ]
 all = [
     "any",
     "tls",
-    "json",
-    "uuid",
-    "serde",
-    "chrono",
+    "json-type",
+    "uuid-type",
+    "chrono-type",
     #"mssql",
     "mysql",
     "serde",
     "sqlite",
     "postgres",
-    "bigdecimal",
+    "bigdecimal-type",
     "async-std-rustls",
     "async-std-native-tls",
     "tokio-rustls",

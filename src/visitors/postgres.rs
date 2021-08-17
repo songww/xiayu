@@ -109,21 +109,21 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                     Ok(())
                 })
             }),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(j) => {
                 j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
             }
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
         };
 
@@ -224,14 +224,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             _ if left.is_json_value() => "::jsonb",
             _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             _ if right.is_json_value() => "::jsonb",
             _ if right.is_xml_value() => "::text",
             _ => "",
@@ -253,14 +253,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     ) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             _ if left.is_json_value() => "::jsonb",
             _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             _ if right.is_json_value() => "::jsonb",
             _ if right.is_xml_value() => "::text",
             _ => "",
@@ -275,7 +275,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> visitors::Result {
         match json_extract.path {
             #[cfg(feature = "mysql")]
@@ -310,7 +310,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         }
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -332,7 +332,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -354,7 +354,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -376,7 +376,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         left: Expression<'a>,
@@ -408,7 +408,7 @@ mod tests {
         #[column(primary_key)]
         id: i32,
         foo: i32,
-        #[cfg(feature = "json")]
+        #[cfg(feature = "json-type")]
         #[column(name = "jsonField")]
         json: serde_json::Value,
         #[column(name = "xmlField")]
@@ -588,7 +588,7 @@ mod tests {
         assert_eq!(expected_sql, sql);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn equality_with_a_json_value() {
         let expected = expected_values(
@@ -604,7 +604,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn equality_with_a_lhs_json_value() {
         // A bit artificial, but checks if the ::jsonb casting is done correctly on the right side as well.
@@ -621,7 +621,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn difference_with_a_json_value() {
         let expected = expected_values(
@@ -637,7 +637,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn difference_with_a_lhs_json_value() {
         let expected = expected_values(
@@ -770,7 +770,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     fn test_raw_json() {
         let (sql, params) =
             Postgres::build(Select::default().value(serde_json::json!({ "foo": "bar" }).raw()))
@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "uuid")]
+    #[cfg(feature = "uuid-type")]
     fn test_raw_uuid() {
         let uuid = uuid::Uuid::new_v4();
         let (sql, params) = Postgres::build(Select::default().value(uuid.raw())).unwrap();
@@ -794,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     fn test_raw_datetime() {
         let dt = chrono::Utc::now();
         let (sql, params) = Postgres::build(Select::default().value(dt.raw())).unwrap();
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn test_raw_comparator() {
         let (sql, _) = Postgres::build(
-            Select::from_table(Foo::table()).so_that(Foo::bar.clone().compare_raw("ILIKE", "baz%")),
+            Select::from_table(Foo::table()).so_that(Foo::bar.compare_raw("ILIKE", "baz%")),
         )
         .unwrap();
 
@@ -819,8 +819,8 @@ mod tests {
     #[test]
     fn test_default_insert() {
         let insert = Insert::single_into(Foo::table())
-            .value(Foo::foo.clone(), "bar")
-            .value(Foo::bar.clone(), default_value());
+            .value(Foo::foo, "bar")
+            .value(Foo::bar, default_value());
 
         let (sql, _) = Postgres::build(insert).unwrap();
 
