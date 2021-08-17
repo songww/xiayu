@@ -1,5 +1,6 @@
 use super::*;
 use crate::error::*;
+use crate::prelude::*;
 use std::convert::TryFrom;
 
 /// A builder for SQL `MERGE` queries.
@@ -179,37 +180,8 @@ impl<'a> TryFrom<Insert<'a>> for Merge<'a> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Entity)]
+#[tablename = "dual"]
 struct Dual {
     id: i32,
-}
-
-impl crate::prelude::Entity for Dual {
-    const COLUMNS: &'static [Column<'static>] = &[];
-
-    fn tablename() -> &'static str {
-        "dual"
-    }
-
-    fn columns() -> &'static [Column<'static>] {
-        Self::COLUMNS
-    }
-
-    fn table() -> Table<'static> {
-        Table {
-            typ: TableType::Table(Self::tablename().into()),
-            alias: None,
-            database: None,
-            index_definitions: Vec::new(),
-        }
-    }
-}
-
-impl crate::prelude::HasPrimaryKey for Dual {
-    type PrimaryKey = crate::prelude::ColumnOptions<i32>;
-    fn primary_key() -> Self::PrimaryKey {
-        crate::prelude::ColumnOptions::new(
-            "id", "dual", true, true, None, None, false, None, false, None,
-        )
-    }
 }

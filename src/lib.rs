@@ -36,6 +36,9 @@ pub mod prelude {
     pub use super::ast::*;
     pub use super::Result;
 
+    #[derive(Clone, Debug)]
+    pub struct DefaultValue<T>(fn() -> T);
+
     /// select().where(Entity::last_modified == now())
     pub trait Entity {
         const COLUMNS: &'static [Column<'static>];
@@ -82,7 +85,7 @@ pub mod prelude {
         /// The name of this column as represented in the database. This argument may be the first positional argument, or specified via keyword.
         length: Option<usize>,
         quote: bool,
-        default: Option<T>,
+        default: Option<DefaultValue<T>>,
         _phantom: PhantomData<T>,
         /*
         onupdate: Option<Arc<Box<dyn Fn() -> T>>>,
@@ -102,7 +105,7 @@ pub mod prelude {
             unique: bool,
             length: Option<usize>,
             quote: bool,
-            default: Option<T>,
+            default: Option<DefaultValue<T>>,
         ) -> Self {
             Self {
                 name,
@@ -137,17 +140,25 @@ pub mod prelude {
                 index_definitions: Vec::new(),
             }
         }
+
+        pub fn c(&self) -> Column<'static> {
+            self.column()
+        }
+
+        pub fn t(&self) -> Table<'static> {
+            self.table()
+        }
     }
 
     impl<'a, T> From<ColumnOptions<T>> for Column<'a> {
         fn from(options: ColumnOptions<T>) -> Self {
-            options.column()
+            options.c()
         }
     }
 
     impl<'a, T> From<&ColumnOptions<T>> for Column<'a> {
         fn from(options: &ColumnOptions<T>) -> Self {
-            options.column()
+            options.c()
         }
     }
 
@@ -179,7 +190,7 @@ pub mod prelude {
         where
             A: Into<::std::borrow::Cow<'a, str>>,
         {
-            let mut table = <T as Entity>::table();
+            let mut table = T::table();
             table.alias.replace(alias.into());
             table
         }

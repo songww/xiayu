@@ -447,8 +447,11 @@ mod tests {
 
     #[test]
     fn test_single_row_insert() {
-        let expected = expected_values("INSERT INTO \"users\" (\"foo\") VALUES ($1)", vec![10]);
-        let query = Insert::single_into(<User as Entity>::table()).value(User::foo, 10);
+        let expected = expected_values(
+            "INSERT INTO \"users\" (\"users\".\"foo\") VALUES ($1)",
+            vec![10],
+        );
+        let query = Insert::single_into(User::table()).value(User::foo, 10);
         let (sql, params) = Postgres::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -459,7 +462,7 @@ mod tests {
     #[cfg(feature = "postgres")]
     fn test_returning_insert() {
         let expected = expected_values(
-            "INSERT INTO \"users\" (\"foo\") VALUES ($1) RETURNING \"foo\"",
+            "INSERT INTO \"users\" (\"users\".\"foo\") VALUES ($1) RETURNING \"users\".\"foo\"",
             vec![10],
         );
         let query = Insert::single_into(User::table()).value(User::foo, 10);
@@ -473,7 +476,7 @@ mod tests {
     #[test]
     fn test_multi_row_insert() {
         let expected = expected_values(
-            "INSERT INTO \"users\" (\"foo\") VALUES ($1), ($2)",
+            "INSERT INTO \"users\" (\"users\".\"foo\") VALUES ($1), ($2)",
             vec![10, 11],
         );
         let query = Insert::multi_into(User::table(), vec![User::foo])
@@ -526,7 +529,7 @@ mod tests {
     }
     #[test]
     fn test_distinct() {
-        let expected_sql = "SELECT DISTINCT \"bar\" FROM \"test\"";
+        let expected_sql = "SELECT DISTINCT \"test\".\"bar\" FROM \"test\"";
         let query = Select::from_table(TestEntity::table())
             .column(TestEntity::bar)
             .distinct();
@@ -543,7 +546,8 @@ mod tests {
 
     #[test]
     fn test_distinct_with_subquery() {
-        let expected_sql = "SELECT DISTINCT (SELECT $1 FROM \"test2\"), \"bar\" FROM \"test\"";
+        let expected_sql =
+            "SELECT DISTINCT (SELECT $1 FROM \"test2\"), \"test\".\"bar\" FROM \"test\"";
         let query = Select::from_table(TestEntity::table())
             .value(Select::from_table(SecondTestEntity::table()).value(val!(1)))
             .column(TestEntity::bar)
@@ -557,7 +561,7 @@ mod tests {
     #[derive(Entity)]
     #[tablename = "foo"]
     struct Foo {
-        baz: String,
+        bar: String,
         foo: String,
     }
 
@@ -571,8 +575,9 @@ mod tests {
     #[test]
     fn test_from() {
         let expected_sql =
-            "SELECT \"foo\".*, \"bar\".\"a\" FROM \"foo\", (SELECT \"a\" FROM \"baz\") AS \"bar\"";
+            "SELECT \"foo\".*, \"bar\".\"a\" FROM \"foo\", (SELECT \"baz\".\"a\" FROM \"baz\") AS \"bar\"";
         let query = Select::default()
+            .and_from(Foo::table())
             .and_from(
                 Table::from(Select::from_table(Baz::table()).column(Baz::a_column)).alias("bar"),
             )
@@ -652,7 +657,7 @@ mod tests {
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE "xmlField"::text = $1"#,
+            r#"SELECT "users".* FROM "users" WHERE "users"."xmlField"::text = $1"#,
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
@@ -667,7 +672,7 @@ mod tests {
     #[test]
     fn equality_with_a_lhs_xml_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE $1 = "xmlField"::text"#,
+            r#"SELECT "users".* FROM "users" WHERE $1 = "users"."xmlField"::text"#,
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
@@ -682,7 +687,7 @@ mod tests {
     #[test]
     fn difference_with_a_xml_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE "xmlField"::text <> $1"#,
+            r#"SELECT "users".* FROM "users" WHERE "users"."xmlField"::text <> $1"#,
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
@@ -697,7 +702,7 @@ mod tests {
     #[test]
     fn difference_with_a_lhs_xml_value() {
         let expected = expected_values(
-            r#"SELECT "users".* FROM "users" WHERE $1 <> "xmlField"::text"#,
+            r#"SELECT "users".* FROM "users" WHERE $1 <> "users"."xmlField"::text"#,
             vec![Value::xml("<salad>wurst</salad>")],
         );
 
@@ -802,23 +807,26 @@ mod tests {
     #[test]
     fn test_raw_comparator() {
         let (sql, _) = Postgres::build(
-            Select::from_table(Foo::table()).so_that(Foo::baz.clone().compare_raw("ILIKE", "baz%")),
+            Select::from_table(Foo::table()).so_that(Foo::bar.clone().compare_raw("ILIKE", "baz%")),
         )
         .unwrap();
 
-        assert_eq!(r#"SELECT "foo".* FROM "foo" WHERE "bar" ILIKE $1"#, sql);
+        assert_eq!(
+            r#"SELECT "foo".* FROM "foo" WHERE "foo"."bar" ILIKE $1"#,
+            sql
+        );
     }
 
     #[test]
     fn test_default_insert() {
         let insert = Insert::single_into(Foo::table())
             .value(Foo::foo.clone(), "bar")
-            .value(Foo::baz.clone(), default_value());
+            .value(Foo::bar.clone(), default_value());
 
         let (sql, _) = Postgres::build(insert).unwrap();
 
         assert_eq!(
-            "INSERT INTO \"foo\" (\"foo\",\"baz\") VALUES ($1,DEFAULT)",
+            "INSERT INTO \"foo\" (\"foo\".\"foo\",\"foo\".\"bar\") VALUES ($1,DEFAULT)",
             sql
         );
     }
