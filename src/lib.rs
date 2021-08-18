@@ -13,7 +13,7 @@ extern crate xiayu_derive;
 )))]
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
-#[cfg(feature = "bigdecimal")]
+#[cfg(feature = "bigdecimal-type")]
 extern crate bigdecimal as bigdecimal;
 
 #[macro_use]
@@ -24,7 +24,7 @@ pub mod ast;
 pub mod error;
 /*
 #[cfg(feature = "serde")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
 pub mod serde;
 */
 

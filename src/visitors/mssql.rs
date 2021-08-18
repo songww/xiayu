@@ -1,5 +1,5 @@
 use super::Visitor;
-#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 use crate::prelude::{JsonExtract, JsonType};
 use crate::{
     ast::Value,
@@ -325,13 +325,13 @@ impl<'a> Visitor<'a> for Mssql<'a> {
 
                 return Err(builder.build());
             }
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(j) => {
                 j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
             }
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(uuid) => uuid.map(|uuid| {
                 let s = format!(
                     "CONVERT(uniqueidentifier, N'{}')",
@@ -339,17 +339,17 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                 );
                 self.write(s)
             }),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.map(|dt| {
                 let s = format!("CONVERT(datetimeoffset, N'{}')", dt.to_rfc3339());
                 self.write(s)
             }),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(date) => date.map(|date| {
                 let s = format!("CONVERT(date, N'{}')", date);
                 self.write(s)
             }),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(time) => time.map(|time| {
                 let s = format!("CONVERT(time, N'{}')", time);
                 self.write(s)
@@ -613,12 +613,12 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, _json_extract: JsonExtract<'a>) -> visitors::Result {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         _left: Expression<'a>,
@@ -628,7 +628,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         _left: Expression<'a>,
@@ -638,7 +638,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         _left: Expression<'a>,
@@ -648,7 +648,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
         unimplemented!("JSON filtering is not yet supported on MSSQL")
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         _left: Expression<'a>,
@@ -1262,7 +1262,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     fn test_raw_json() {
         let (sql, params) =
             Mssql::build(Select::default().value(serde_json::json!({ "foo": "bar" }).raw()))
@@ -1272,7 +1272,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "uuid")]
+    #[cfg(feature = "uuid-type")]
     fn test_raw_uuid() {
         let uuid = uuid::Uuid::new_v4();
         let (sql, params) = Mssql::build(Select::default().value(uuid.raw())).unwrap();
@@ -1289,7 +1289,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     fn test_raw_datetime() {
         let dt = chrono::Utc::now();
         let (sql, params) = Mssql::build(Select::default().value(dt.raw())).unwrap();

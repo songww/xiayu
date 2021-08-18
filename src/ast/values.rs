@@ -1,18 +1,18 @@
 use crate::ast::*;
 use crate::error::{Error, ErrorKind};
 
-#[cfg(feature = "bigdecimal")]
+#[cfg(feature = "bigdecimal-type")]
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-#[cfg(feature = "chrono")]
+#[cfg(feature = "chrono-type")]
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
-#[cfg(feature = "json")]
+#[cfg(feature = "json-type")]
 use serde_json::{Number, Value as JsonValue};
 use std::{
     borrow::{Borrow, Cow},
     convert::TryFrom,
     fmt,
 };
-#[cfg(feature = "uuid")]
+#[cfg(feature = "uuid-type")]
 use uuid::Uuid;
 
 /// A value written to the query as-is without parameterization.
@@ -59,29 +59,29 @@ pub enum Value<'a> {
     /// An array value (PostgreSQL).
     Array(Option<Vec<Value<'a>>>),
     /// A numeric value.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(feature = "bigdecimal-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
     Numeric(Option<BigDecimal>),
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg(feature = "json-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
     /// A JSON value.
     Json(Option<serde_json::Value>),
     /// A XML value.
     Xml(Option<Cow<'a, str>>),
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    #[cfg(feature = "uuid-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid-type")))]
     /// An UUID value.
     Uuid(Option<Uuid>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     /// A datetime value.
     DateTime(Option<DateTime<Utc>>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     /// A date value.
     Date(Option<NaiveDate>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     /// A time value.
     Time(Option<NaiveTime>),
 }
@@ -129,17 +129,17 @@ impl<'a> fmt::Display for Value<'a> {
                 write!(f, "]")
             }),
             Value::Xml(val) => val.as_ref().map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(val) => val.as_ref().map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(val) => val.as_ref().map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(val) => val.map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(val) => val.map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(val) => val.map(|v| write!(f, "{}", v)),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(val) => val.map(|v| write!(f, "{}", v)),
         };
 
@@ -150,8 +150,8 @@ impl<'a> fmt::Display for Value<'a> {
     }
 }
 
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg(feature = "json-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
 impl<'a> From<Value<'a>> for serde_json::Value {
     fn from(pv: Value<'a>) -> Self {
         let res = match pv {
@@ -165,7 +165,9 @@ impl<'a> From<Value<'a>> for serde_json::Value {
                 None => serde_json::Value::Null,
             }),
             Value::Text(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
-            Value::Bytes(bytes) => bytes.map(|bytes| serde_json::Value::String(base64::encode(&bytes))),
+            Value::Bytes(bytes) => {
+                bytes.map(|bytes| serde_json::Value::String(base64::encode(&bytes)))
+            }
             Value::Enum(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
             Value::Boolean(b) => b.map(serde_json::Value::Bool),
             Value::Char(c) => c.map(|c| {
@@ -176,20 +178,20 @@ impl<'a> From<Value<'a>> for serde_json::Value {
                 serde_json::Value::String(s)
             }),
             Value::Xml(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
-            Value::Array(v) => {
-                v.map(|v| serde_json::Value::Array(v.into_iter().map(serde_json::Value::from).collect()))
-            }
-            #[cfg(feature = "bigdecimal")]
+            Value::Array(v) => v.map(|v| {
+                serde_json::Value::Array(v.into_iter().map(serde_json::Value::from).collect())
+            }),
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(d) => d.map(|d| serde_json::to_value(d.to_f64().unwrap()).unwrap()),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(v) => v,
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(u) => u.map(|u| serde_json::Value::String(u.to_hyphenated().to_string())),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.map(|dt| serde_json::Value::String(dt.to_rfc3339())),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(date) => date.map(|date| serde_json::Value::String(format!("{}", date))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(time) => time.map(|time| serde_json::Value::String(format!("{}", time))),
         };
 
@@ -210,8 +212,8 @@ impl<'a> Value<'a> {
     }
 
     /// Creates a new decimal value.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(feature = "bigdecimal-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
     pub const fn numeric(value: BigDecimal) -> Self {
         Value::Numeric(Some(value))
     }
@@ -276,36 +278,36 @@ impl<'a> Value<'a> {
     }
 
     /// Creates a new uuid value.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    #[cfg(feature = "uuid-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid-type")))]
     pub const fn uuid(value: Uuid) -> Self {
         Value::Uuid(Some(value))
     }
 
     /// Creates a new datetime value.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn datetime(value: DateTime<Utc>) -> Self {
         Value::DateTime(Some(value))
     }
 
     /// Creates a new date value.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn date(value: NaiveDate) -> Self {
         Value::Date(Some(value))
     }
 
     /// Creates a new time value.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn time(value: NaiveTime) -> Self {
         Value::Time(Some(value))
     }
 
     /// Creates a new JSON value.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg(feature = "json-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
     pub const fn json(value: serde_json::Value) -> Self {
         Value::Json(Some(value))
     }
@@ -331,17 +333,17 @@ impl<'a> Value<'a> {
             Value::Char(c) => c.is_none(),
             Value::Array(v) => v.is_none(),
             Value::Xml(s) => s.is_none(),
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(r) => r.is_none(),
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(u) => u.is_none(),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-tyep")]
             Value::DateTime(dt) => dt.is_none(),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(d) => d.is_none(),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(t) => t.is_none(),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(json) => json.is_none(),
         }
     }
@@ -440,16 +442,16 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is a numeric value or can be converted to one.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(feature = "bigdecimal-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
     pub const fn is_numeric(&self) -> bool {
         matches!(self, Value::Numeric(_) | Value::Float(_) | Value::Double(_))
     }
 
     /// Returns a bigdecimal, if the value is a numeric, float or double value,
     /// otherwise `None`.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(feature = "bigdecimal-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
     pub fn into_numeric(self) -> Option<BigDecimal> {
         match self {
             Value::Numeric(d) => d,
@@ -461,8 +463,8 @@ impl<'a> Value<'a> {
 
     /// Returns a reference to a bigdecimal, if the value is a numeric.
     /// Otherwise `None`.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(feature = "bigdecimal-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
     pub const fn as_numeric(&self) -> Option<&BigDecimal> {
         match self {
             Value::Numeric(d) => d.as_ref(),
@@ -496,15 +498,15 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is of UUID type.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    #[cfg(feature = "uuid-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid-type")))]
     pub const fn is_uuid(&self) -> bool {
         matches!(self, Value::Uuid(_))
     }
 
     /// Returns an UUID if the value is of UUID type, otherwise `None`.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    #[cfg(feature = "uuid-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid-type")))]
     pub const fn as_uuid(&self) -> Option<Uuid> {
         match self {
             Value::Uuid(u) => *u,
@@ -513,15 +515,15 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is a DateTime.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn is_datetime(&self) -> bool {
         matches!(self, Value::DateTime(_))
     }
 
     /// Returns a `DateTime` if the value is a `DateTime`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn as_datetime(&self) -> Option<DateTime<Utc>> {
         match self {
             Value::DateTime(dt) => *dt,
@@ -530,15 +532,15 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is a Date.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn is_date(&self) -> bool {
         matches!(self, Value::Date(_))
     }
 
     /// Returns a `NaiveDate` if the value is a `Date`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn as_date(&self) -> Option<NaiveDate> {
         match self {
             Value::Date(dt) => *dt,
@@ -547,15 +549,15 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is a `Time`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn is_time(&self) -> bool {
         matches!(self, Value::Time(_))
     }
 
     /// Returns a `NaiveTime` if the value is a `Time`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(feature = "chrono-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
     pub const fn as_time(&self) -> Option<NaiveTime> {
         match self {
             Value::Time(time) => *time,
@@ -564,15 +566,15 @@ impl<'a> Value<'a> {
     }
 
     /// `true` if the `Value` is a JSON value.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg(feature = "json-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
     pub const fn is_json(&self) -> bool {
         matches!(self, Value::Json(_))
     }
 
     /// Returns a reference to a JSON Value if of Json type, otherwise `None`.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg(feature = "json-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
     pub const fn as_json(&self) -> Option<&serde_json::Value> {
         match self {
             Value::Json(Some(j)) => Some(j),
@@ -581,8 +583,8 @@ impl<'a> Value<'a> {
     }
 
     /// Transforms to a JSON Value if of Json type, otherwise `None`.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg(feature = "json-type")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
     pub fn into_json(self) -> Option<serde_json::Value> {
         match self {
             Value::Json(Some(j)) => Some(j),
@@ -619,22 +621,22 @@ value!(val: &'a [u8], Bytes, val.into());
 value!(val: f64, Double, val);
 value!(val: f32, Float, val);
 
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(feature = "chrono-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
 value!(val: DateTime<Utc>, DateTime, val);
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(feature = "chrono-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
 value!(val: chrono::NaiveTime, Time, val);
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(feature = "chrono-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
 value!(val: chrono::NaiveDate, Date, val);
-#[cfg(feature = "bigdecimal")]
+#[cfg(feature = "bigdecimal-type")]
 value!(val: BigDecimal, Numeric, val);
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg(feature = "json-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
 value!(val: JsonValue, Json, val);
-#[cfg(feature = "uuid")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+#[cfg(feature = "uuid-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "uuid-type")))]
 value!(val: Uuid, Uuid, val);
 
 impl<'a> TryFrom<Value<'a>> for i64 {
@@ -647,7 +649,7 @@ impl<'a> TryFrom<Value<'a>> for i64 {
     }
 }
 
-#[cfg(feature = "bigdecimal")]
+#[cfg(feature = "bigdecimal-type")]
 impl<'a> TryFrom<Value<'a>> for BigDecimal {
     type Error = Error;
 
@@ -688,8 +690,8 @@ impl<'a> TryFrom<Value<'a>> for bool {
     }
 }
 
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(feature = "chrono-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono-type")))]
 impl<'a> TryFrom<Value<'a>> for DateTime<Utc> {
     type Error = Error;
 
@@ -788,7 +790,7 @@ impl<'a> IntoIterator for Values<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     use std::str::FromStr;
 
     #[test]
@@ -820,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     fn a_parameterized_value_of_datetimes_can_be_converted_into_a_vec() {
         let datetime = DateTime::from_str("2019-07-27T05:30:30Z").expect("parsing date/time");
         let pv = Value::array(vec![datetime]);

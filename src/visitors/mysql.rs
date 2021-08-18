@@ -95,9 +95,9 @@ impl<'a> Visitor<'a> for Mysql<'a> {
 
                 return Err(builder.build());
             }
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(j) => match j {
                 Some(ref j) => {
                     let s = serde_json::to_string(&j)?;
@@ -105,15 +105,15 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 }
                 None => None,
             },
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
         };
@@ -235,7 +235,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
     }
 
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(feature = "json-type")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.write("JSON_CONTAINS")?;
@@ -258,7 +258,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             }
         }
 
-        #[cfg(not(feature = "json"))]
+        #[cfg(not(feature = "json-type"))]
         {
             self.visit_regular_equality_comparison(left, right)
         }
@@ -269,7 +269,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         left: Expression<'a>,
         right: Expression<'a>,
     ) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(feature = "json-type")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.write("NOT JSON_CONTAINS")?;
@@ -292,13 +292,13 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             }
         }
 
-        #[cfg(not(feature = "json"))]
+        #[cfg(not(feature = "json-type"))]
         {
             self.visit_regular_difference_comparison(left, right)
         }
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> visitors::Result {
         if json_extract.extract_as_string {
             self.write("JSON_UNQUOTE(")?;
@@ -323,7 +323,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -343,7 +343,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -369,7 +369,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -397,7 +397,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         left: Expression<'a>,
@@ -552,7 +552,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn equality_with_a_json_value() {
         let expected = expected_values(
@@ -568,7 +568,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn difference_with_a_json_value() {
         let expected = expected_values(
@@ -677,7 +677,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     fn test_raw_json() {
         let (sql, params) =
             Mysql::build(Select::default().value(serde_json::json!({ "foo": "bar" }).raw()))
@@ -687,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "uuid")]
+    #[cfg(feature = "uuid-type")]
     fn test_raw_uuid() {
         let uuid = uuid::Uuid::new_v4();
         let (sql, params) = Mysql::build(Select::default().value(uuid.raw())).unwrap();
@@ -701,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     fn test_raw_datetime() {
         let dt = chrono::Utc::now();
         let (sql, params) = Mysql::build(Select::default().value(dt.raw())).unwrap();

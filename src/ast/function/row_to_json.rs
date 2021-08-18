@@ -3,7 +3,7 @@ use crate::ast::Table;
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
-#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg(all(feature = "json-type", feature = "postgres"))]
 /// A representation of the `ROW_TO_JSON` function in the database.
 /// Only for `postgres`
 pub struct RowToJson<'a> {
@@ -40,7 +40,7 @@ pub struct RowToJson<'a> {
 /// # }
 /// ```
 #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
-#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg(all(feature = "json-type", feature = "postgres"))]
 pub fn row_to_json<'a, T>(expr: T, pretty_print: bool) -> Function<'a>
 where
     T: Into<Table<'a>>,
