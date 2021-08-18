@@ -337,7 +337,7 @@ impl<'a> Value<'a> {
             Value::Numeric(r) => r.is_none(),
             #[cfg(feature = "uuid-type")]
             Value::Uuid(u) => u.is_none(),
-            #[cfg(feature = "chrono-tyep")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.is_none(),
             #[cfg(feature = "chrono-type")]
             Value::Date(d) => d.is_none(),

@@ -390,7 +390,7 @@ mod tests {
 
     #[test]
     fn test_in_values() {
-        use crate::{col, values};
+        use crate::values;
 
         let expected_sql =
             "SELECT `test`.* FROM `test` WHERE (`test`.`id1`,`test`.`id2`) IN (VALUES (?,?),(?,?))";

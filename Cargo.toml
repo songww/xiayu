@@ -6,7 +6,6 @@ edition = "2018"
 [package.metadata.docs.rs]
 features = ["docs", "all"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "xiayu"
 
