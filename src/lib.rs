@@ -182,6 +182,19 @@ pub mod prelude {
         }
     }
 
+    impl<'a, T> Aliasable<'a> for ColumnOptions<T> {
+        type Target = Column<'a>;
+
+        fn alias<A>(self, alias: A) -> Self::Target
+        where
+            A: Into<std::borrow::Cow<'a, str>>,
+        {
+            let mut target = self.column();
+            target.alias = Some(alias.into());
+            target
+        }
+    }
+
     impl<'a, T> Aliasable<'a> for T
     where
         T: Entity,
@@ -197,6 +210,26 @@ pub mod prelude {
             table
         }
     }
+
+    impl<'a, T> IntoOrderDefinition<'a> for ColumnOptions<T> {
+        fn into_order_definition(self) -> OrderDefinition<'a> {
+            (self.column().into(), None)
+        }
+    }
+
+    impl<'a, T> Orderable<'a> for ColumnOptions<T> {
+        fn order(self, order: Option<Order>) -> OrderDefinition<'a> {
+            (self.column().into(), order)
+        }
+    }
+
+    /*
+    impl<'a, T> PartialEq for ColumnOptions<T> {
+        fn eq(&self, other: &ColumnOptions<T>) -> bool {
+            self.name == other.name && self.table == other.table
+        }
+    }
+    */
 
     /*
     impl<'a> ::xiayu::prelude::Selectable<'a> for #ident {

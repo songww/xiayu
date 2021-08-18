@@ -285,7 +285,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
 #[cfg(test)]
 mod tests {
     use crate::prelude::*;
-    use crate::{val, visitor::*};
+    use crate::{val, visitors::*};
 
     fn expected_values<'a, T>(sql: &'static str, params: Vec<T>) -> (String, Vec<Value<'a>>)
     where
@@ -341,7 +341,13 @@ mod tests {
 
     #[derive(Entity)]
     #[tablename = "musti"]
-    struct Musti;
+    struct Musti {
+        foo: i32,
+        baz: i32,
+        bar: i32,
+        paw: i32,
+        nose: i32,
+    }
 
     #[test]
     fn test_select_star_from() {
@@ -355,7 +361,11 @@ mod tests {
 
     #[derive(Entity)]
     #[tablename = "test"]
-    struct TestEntity;
+    struct TestEntity {
+        id1: i32,
+        id2: i32,
+        bar: i32,
+    }
 
     #[test]
     fn test_select_from_values() {
@@ -383,9 +393,10 @@ mod tests {
         use crate::{col, values};
 
         let expected_sql =
-            "SELECT `test`.* FROM `test` WHERE (`id1`,`id2`) IN (VALUES (?,?),(?,?))";
-        let query = Select::from_table(TestEntity::table())
-            .so_that(Row::from((col!("id1"), col!("id2"))).in_selection(values!((1, 2), (3, 4))));
+            "SELECT `test`.* FROM `test` WHERE (`test`.`id1`,`test`.`id2`) IN (VALUES (?,?),(?,?))";
+        let query = Select::from_table(TestEntity::table()).so_that(
+            Row::from((TestEntity::id1, TestEntity::id2)).in_selection(values!((1, 2), (3, 4))),
+        );
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -404,7 +415,7 @@ mod tests {
     #[test]
     fn test_in_values_singular() {
         let mut cols = Row::new();
-        cols.push(Column::from("id1"));
+        cols.push(TestEntity::id1);
 
         let mut vals = Values::new(vec![]);
 
@@ -421,7 +432,7 @@ mod tests {
 
         let query = Select::from_table(TestEntity::table()).so_that(cols.in_selection(vals));
         let (sql, params) = Sqlite::build(query).unwrap();
-        let expected_sql = "SELECT `test`.* FROM `test` WHERE `id1` IN (?,?)";
+        let expected_sql = "SELECT `test`.* FROM `test` WHERE `test`.`id1` IN (?,?)";
 
         assert_eq!(expected_sql, sql);
         assert_eq!(vec![Value::integer(1), Value::integer(2),], params)
@@ -429,11 +440,11 @@ mod tests {
 
     #[test]
     fn test_select_order_by() {
-        let expected_sql = "SELECT `musti`.* FROM `musti` ORDER BY `foo`, `baz` ASC, `bar` DESC";
-        let query = Select::from_table("musti")
-            .order_by("foo")
-            .order_by("baz".ascend())
-            .order_by("bar".descend());
+        let expected_sql = "SELECT `musti`.* FROM `musti` ORDER BY `musti`.`foo`, `musti`.`baz` ASC, `musti`.`bar` DESC";
+        let query = Select::from_table(Musti::table())
+            .order_by(Musti::foo)
+            .order_by(Musti::baz.ascend())
+            .order_by(Musti::bar.descend());
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -442,24 +453,32 @@ mod tests {
 
     #[test]
     fn test_select_fields_from() {
-        let expected_sql = "SELECT `paw`, `nose` FROM `cat`.`musti`";
-        let query = Select::from_table(("cat", "musti"))
-            .column("paw")
-            .column("nose");
+        let expected_sql = "SELECT `musti`.`paw`, `musti`.`nose` FROM `cat`.`musti`";
+        let query = Select::from_table(Musti::table().database("cat"))
+            .column(Musti::paw)
+            .column(Musti::nose);
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(default_params(vec![]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "naukio"]
+    struct Naukio {
+        word: String,
+        paw: String,
+        age: i32,
+    }
+
     #[test]
     fn test_select_where_equals() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` = ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` = ?",
             vec!["meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".equals("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.equals("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -469,11 +488,11 @@ mod tests {
     #[test]
     fn test_select_where_like() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` LIKE ?",
             vec!["%meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".like("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.like("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -483,11 +502,11 @@ mod tests {
     #[test]
     fn test_select_where_not_like() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` NOT LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` NOT LIKE ?",
             vec!["%meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_like("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.not_like("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -497,11 +516,11 @@ mod tests {
     #[test]
     fn test_select_where_begins_with() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` LIKE ?",
             vec!["meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".begins_with("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.begins_with("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -511,11 +530,12 @@ mod tests {
     #[test]
     fn test_select_where_not_begins_with() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` NOT LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` NOT LIKE ?",
             vec!["meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_begins_with("meow"));
+        let query =
+            Select::from_table(Naukio::table()).so_that(Naukio::word.not_begins_with("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -525,11 +545,11 @@ mod tests {
     #[test]
     fn test_select_where_ends_into() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` LIKE ?",
             vec!["%meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".ends_into("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.ends_into("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -539,11 +559,11 @@ mod tests {
     #[test]
     fn test_select_where_not_ends_into() {
         let expected = expected_values(
-            "SELECT `naukio`.* FROM `naukio` WHERE `word` NOT LIKE ?",
+            "SELECT `naukio`.* FROM `naukio` WHERE `naukio`.`word` NOT LIKE ?",
             vec!["%meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_ends_into("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.not_ends_into("meow"));
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -553,16 +573,16 @@ mod tests {
     #[test]
     fn test_select_and() {
         let expected_sql =
-            "SELECT `naukio`.* FROM `naukio` WHERE (`word` = ? AND `age` < ? AND `paw` = ?)";
+            "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND `naukio`.`age` < ? AND `naukio`.`paw` = ?)";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .and("age".less_than(10))
-            .and("paw".equals("warm"));
+            .and(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"));
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -573,15 +593,15 @@ mod tests {
     #[test]
     fn test_select_and_different_execution_order() {
         let expected_sql =
-            "SELECT `naukio`.* FROM `naukio` WHERE (`word` = ? AND (`age` < ? AND `paw` = ?))";
+            "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND (`naukio`.`age` < ? AND `naukio`.`paw` = ?))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .and("age".less_than(10).and("paw".equals("warm")));
+            .and(Naukio::age.less_than(10).and(Naukio::paw.equals("warm")));
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -592,16 +612,16 @@ mod tests {
     #[test]
     fn test_select_or() {
         let expected_sql =
-            "SELECT `naukio`.* FROM `naukio` WHERE ((`word` = ? OR `age` < ?) AND `paw` = ?)";
+            "SELECT `naukio`.* FROM `naukio` WHERE ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?)";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .or("age".less_than(10))
-            .and("paw".equals("warm"));
+            .or(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"));
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -612,17 +632,17 @@ mod tests {
     #[test]
     fn test_select_negation() {
         let expected_sql =
-            "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`word` = ? OR `age` < ?) AND `paw` = ?))";
+            "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .or("age".less_than(10))
-            .and("paw".equals("warm"))
+            .or(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"))
             .not();
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -633,17 +653,17 @@ mod tests {
     #[test]
     fn test_with_raw_condition_tree() {
         let expected_sql =
-            "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`word` = ? OR `age` < ?) AND `paw` = ?))";
+            "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
         let conditions = ConditionTree::not(
-            "word"
+            Naukio::word
                 .equals("meow")
-                .or("age".less_than(10))
-                .and("paw".equals("warm")),
+                .or(Naukio::age.less_than(10))
+                .and(Naukio::paw.equals("warm")),
         );
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
@@ -651,13 +671,24 @@ mod tests {
         assert_eq!(default_params(expected_params), params);
     }
 
+    #[derive(Entity)]
+    struct User {
+        id: i32,
+    }
+
+    #[derive(Entity)]
+    struct Post {
+        user_id: i32,
+        published: bool,
+    }
+
     #[test]
     fn test_simple_inner_join() {
         let expected_sql =
             "SELECT `users`.* FROM `users` INNER JOIN `posts` ON `users`.`id` = `posts`.`user_id`";
 
-        let query = Select::from_table("users")
-            .inner_join("posts".on(("users", "id").equals(Column::from(("posts", "user_id")))));
+        let query = Select::from_table(User::table())
+            .inner_join(Post::table().on(User::id.equals(Post::user_id)));
         let (sql, _) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -668,10 +699,10 @@ mod tests {
         let expected_sql =
             "SELECT `users`.* FROM `users` INNER JOIN `posts` ON (`users`.`id` = `posts`.`user_id` AND `posts`.`published` = ?)";
 
-        let query = Select::from_table("users").inner_join(
-            "posts".on(("users", "id")
-                .equals(Column::from(("posts", "user_id")))
-                .and(("posts", "published").equals(true))),
+        let query = Select::from_table(User::table()).inner_join(
+            Post::table().on(User::id
+                .equals(Post::user_id)
+                .and(Post::published.equals(true))),
         );
 
         let (sql, params) = Sqlite::build(query).unwrap();
@@ -685,8 +716,8 @@ mod tests {
         let expected_sql =
             "SELECT `users`.* FROM `users` LEFT JOIN `posts` ON `users`.`id` = `posts`.`user_id`";
 
-        let query = Select::from_table("users")
-            .left_join("posts".on(("users", "id").equals(Column::from(("posts", "user_id")))));
+        let query = Select::from_table(User::table())
+            .left_join(Post::table().on(User::id.equals(Post::user_id)));
         let (sql, _) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -697,10 +728,10 @@ mod tests {
         let expected_sql =
             "SELECT `users`.* FROM `users` LEFT JOIN `posts` ON (`users`.`id` = `posts`.`user_id` AND `posts`.`published` = ?)";
 
-        let query = Select::from_table("users").left_join(
-            "posts".on(("users", "id")
-                .equals(Column::from(("posts", "user_id")))
-                .and(("posts", "published").equals(true))),
+        let query = Select::from_table(User::table()).left_join(
+            Post::table().on(User::id
+                .equals(Post::user_id)
+                .and(Post::published.equals(true))),
         );
 
         let (sql, params) = Sqlite::build(query).unwrap();
@@ -709,10 +740,15 @@ mod tests {
         assert_eq!(default_params(vec![Value::boolean(true),]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "meow"]
+    struct Meow {
+        bar: i32,
+    }
     #[test]
     fn test_column_aliasing() {
-        let expected_sql = "SELECT `bar` AS `foo` FROM `meow`";
-        let query = Select::from_table("meow").column(Column::new("bar").alias("foo"));
+        let expected_sql = "SELECT `meow`.`bar` AS `foo` FROM `meow`";
+        let query = Select::from_table(Meow::table()).column(Meow::bar.alias("foo"));
         let (sql, _) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -720,41 +756,60 @@ mod tests {
 
     #[test]
     fn test_distinct() {
-        let expected_sql = "SELECT DISTINCT `bar` FROM `test`";
-        let query = Select::from_table("test")
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT `test`.`bar` FROM `test`";
+        let query = Select::from_table(TestEntity::table())
+            .column(TestEntity::bar)
             .distinct();
         let (sql, _) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test2"]
+    struct Test2Entity {}
+
     #[test]
     fn test_distinct_with_subquery() {
-        let expected_sql = "SELECT DISTINCT (SELECT ? FROM `test2`), `bar` FROM `test`";
-        let query = Select::from_table("test")
-            .value(Select::from_table("test2").value(val!(1)))
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT (SELECT ? FROM `test2`), `test`.`bar` FROM `test`";
+        let query = Select::from_table(TestEntity::table())
+            .value(Select::from_table(Test2Entity::table()).value(val!(1)))
+            .column(TestEntity::bar)
             .distinct();
 
         let (sql, _) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
+    }
+
+    #[derive(Entity)]
+    #[tablename = "foo"]
+    struct Foo {
+        foo: String,
+        baz: String,
+    }
+
+    #[derive(Entity)]
+    #[tablename = "baz"]
+    struct Baz {
+        a: i32,
     }
 
     #[test]
     fn test_from() {
-        let expected_sql = "SELECT `foo`.*, `bar`.`a` FROM `foo`, (SELECT `a` FROM `baz`) AS `bar`";
+        let expected_sql =
+            "SELECT `foo`.*, `bar`.`a` FROM `foo`, (SELECT `baz`.`a` FROM `baz`) AS `bar`";
         let query = Select::default()
-            .and_from("foo")
-            .and_from(Table::from(Select::from_table("baz").column("a")).alias("bar"))
-            .value(Table::from("foo").asterisk())
-            .column(("bar", "a"));
+            .and_from(Foo::table())
+            .and_from(Table::from(Select::from_table(Baz::table()).column(Baz::a)).alias("bar"))
+            .value(Foo::table().asterisk())
+            .column(Baz::a);
 
         let (sql, _) = Sqlite::build(query).unwrap();
         assert_eq!(expected_sql, sql);
     }
 
+    /*
     #[cfg(feature = "sqlite")]
     fn sqlite_harness() -> ::rusqlite::Connection {
         let conn = ::rusqlite::Connection::open_in_memory().unwrap();
@@ -814,6 +869,7 @@ mod tests {
         assert_eq!(42.69, person.age);
         assert_eq!(1, person.nice);
     }
+    */
 
     #[test]
     fn test_raw_null() {
@@ -907,27 +963,31 @@ mod tests {
 
     #[test]
     fn test_default_insert() {
-        let insert = Insert::single_into("foo")
-            .value("foo", "bar")
-            .value("baz", default_value());
+        let insert = Insert::single_into(Foo::table())
+            .value(Foo::foo, "bar")
+            .value(Foo::baz, default_value());
 
         let (sql, _) = Sqlite::build(insert).unwrap();
 
-        assert_eq!("INSERT INTO `foo` (`foo`, `baz`) VALUES (?,DEFAULT)", sql);
+        assert_eq!(
+            "INSERT INTO `foo` (`foo`.`foo`, `foo`.`baz`) VALUES (?,DEFAULT)",
+            sql
+        );
     }
+
+    #[derive(Entity)]
+    #[tablename = "Toto"]
+    struct Toto {}
 
     #[test]
     fn join_is_inserted_positionally() {
-        let joined_table = Table::from("User").left_join(
-            "Post"
-                .alias("p")
-                .on(("p", "userId").equals(Column::from(("User", "id")))),
-        );
-        let q = Select::from_table(joined_table).and_from("Toto");
+        let joined_table = Table::from(User::table())
+            .left_join(Post::table().alias("p").on(Post::user_id.equals(User::id)));
+        let q = Select::from_table(joined_table).and_from(Toto::table());
         let (sql, _) = Sqlite::build(q).unwrap();
 
         assert_eq!(
-            "SELECT `User`.*, `Toto`.* FROM `User` LEFT JOIN `Post` AS `p` ON `p`.`userId` = `User`.`id`, `Toto`",
+            "SELECT `users`.*, `Toto`.* FROM `users` LEFT JOIN `posts` AS `p` ON `p`.`user_id` = `user`.`id`, `Toto`",
             sql
         );
     }
