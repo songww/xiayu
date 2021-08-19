@@ -97,9 +97,14 @@ impl<'a> Table<'a> {
                     }
                 }
             } else {
-                unreachable!();
-                // let dual_col = column.clone().table("dual");
-                // Some(dual_col.equals(column.clone()).into())
+                let table = Table {
+                    typ: TableType::Table("dual".into()),
+                    alias: None,
+                    database: None,
+                    index_definitions: Vec::new(),
+                };
+                let dual_col = column.clone().table(table);
+                Some(dual_col.equals(column.clone()).into())
             };
 
             Ok::<Option<ConditionTree>, Error>(cond)

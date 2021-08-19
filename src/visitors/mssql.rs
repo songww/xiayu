@@ -1,6 +1,6 @@
 use super::Visitor;
 #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
-use crate::prelude::{JsonExtract, JsonType};
+use crate::prelude::{JsonExtract, JsonType, TableType};
 use crate::{
     ast::Value,
     ast::{
@@ -28,7 +28,16 @@ pub struct Mssql<'a> {
 impl<'a> Mssql<'a> {
     // TODO: figure out that merge shit
     fn visit_returning(&mut self, columns: Vec<Column<'a>>) -> visitors::Result {
-        let cols: Vec<_> = columns.into_iter().map(|c| c.table("Inserted")).collect();
+        let inserted_table = Table {
+            typ: crate::ast::TableType::Table("Inserted".into()),
+            alias: None,
+            database: None,
+            index_definitions: Vec::new(),
+        };
+        let cols: Vec<_> = columns
+            .into_iter()
+            .map(|c| c.table(inserted_table.clone()))
+            .collect();
 
         self.write(" OUTPUT ")?;
 
@@ -97,7 +106,7 @@ impl<'a> Mssql<'a> {
             let columns_len = columns.len();
 
             for (i, column) in columns.into_iter().enumerate() {
-                this.visit_column(Column::from(column))?;
+                this.visit_column(column.clone())?;
                 this.write(" ")?;
 
                 match column.type_family {
@@ -123,11 +132,25 @@ impl<'a> Mssql<'a> {
     ) -> visitors::Result {
         let col_len = columns.len();
 
+        let t_table = Table {
+            typ: TableType::Table("t".into()),
+            alias: None,
+            database: None,
+            index_definitions: Vec::new(),
+        };
+
+        let g_table = Table {
+            typ: TableType::Table("g".into()),
+            alias: None,
+            database: None,
+            index_definitions: Vec::new(),
+        };
+
         let join = columns
             .iter()
             .fold(JoinData::from(target_table.alias("t")), |acc, col| {
-                let left = Column::from(("t", col.name.to_string()));
-                let right = Column::from(("g", col.name.to_string()));
+                let left = Column::new(col.name.to_string()).table(t_table.clone());
+                let right = Column::new(col.name.to_string()).table(g_table.clone());
 
                 acc.on((left).equals(right))
             });
@@ -135,7 +158,7 @@ impl<'a> Mssql<'a> {
         self.write("SELECT ")?;
 
         for (i, col) in columns.into_iter().enumerate() {
-            self.visit_column(col.table("t"))?;
+            self.visit_column(col.table(t_table.clone()))?;
 
             if i < (col_len - 1) {
                 self.write(",")?;
@@ -661,7 +684,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ast::*,
+        prelude::*,
         val,
         visitors::{Mssql, Visitor},
     };
@@ -719,25 +742,44 @@ mod tests {
         assert_eq!(vec![Value::Integer(None)], params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "musti"]
+    struct Musti {
+        foo: i32,
+        baz: i32,
+        bar: i32,
+        paw: String,
+        nose: String,
+    }
+
     #[test]
     fn test_select_star_from() {
         let expected_sql = "SELECT [musti].* FROM [musti]";
-        let query = Select::from_table("musti");
+        let query = Select::from_table(Musti::table());
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(default_params(vec![]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test"]
+    struct TestEntity {
+        id1: i32,
+        id2: i32,
+        bar: String,
+    }
+
     #[test]
     fn test_in_values() {
-        use crate::{col, values};
+        use crate::values;
 
         let expected_sql =
-            "SELECT [test].* FROM [test] WHERE (([id1] = @P1 AND [id2] = @P2) OR ([id1] = @P3 AND [id2] = @P4))";
+            "SELECT [test].* FROM [test] WHERE (([test].[id1] = @P1 AND [test].[id2] = @P2) OR ([test].[id1] = @P3 AND [test].[id2] = @P4))";
 
-        let query = Select::from_table("test")
-            .so_that(Row::from((col!("id1"), col!("id2"))).in_selection(values!((1, 2), (3, 4))));
+        let query = Select::from_table(TestEntity::table()).so_that(
+            Row::from((TestEntity::id1, TestEntity::id2)).in_selection(values!((1, 2), (3, 4))),
+        );
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -755,13 +797,13 @@ mod tests {
 
     #[test]
     fn test_not_in_values() {
-        use crate::{col, values};
+        use crate::values;
 
         let expected_sql =
-            "SELECT [test].* FROM [test] WHERE NOT (([id1] = @P1 AND [id2] = @P2) OR ([id1] = @P3 AND [id2] = @P4))";
+            "SELECT [test].* FROM [test] WHERE NOT (([test].[id1] = @P1 AND [test].[id2] = @P2) OR ([test].[id1] = @P3 AND [test].[id2] = @P4))";
 
-        let query = Select::from_table("test").so_that(
-            Row::from((col!("id1"), col!("id2"))).not_in_selection(values!((1, 2), (3, 4))),
+        let query = Select::from_table(TestEntity::table()).so_that(
+            Row::from((TestEntity::id1, TestEntity::id2)).not_in_selection(values!((1, 2), (3, 4))),
         );
 
         let (sql, params) = Mssql::build(query).unwrap();
@@ -781,7 +823,7 @@ mod tests {
     #[test]
     fn test_in_values_singular() {
         let mut cols = Row::new();
-        cols.push(Column::from("id1"));
+        cols.push(TestEntity::id1);
 
         let mut vals = Values::new(vec![]);
 
@@ -796,9 +838,9 @@ mod tests {
             vals.push(row2);
         }
 
-        let query = Select::from_table("test").so_that(cols.in_selection(vals));
+        let query = Select::from_table(TestEntity::table()).so_that(cols.in_selection(vals));
         let (sql, params) = Mssql::build(query).unwrap();
-        let expected_sql = "SELECT [test].* FROM [test] WHERE [id1] IN (@P1,@P2)";
+        let expected_sql = "SELECT [test].* FROM [test] WHERE [test].[id1] IN (@P1,@P2)";
 
         assert_eq!(expected_sql, sql);
         assert_eq!(vec![Value::integer(1), Value::integer(2),], params)
@@ -806,11 +848,11 @@ mod tests {
 
     #[test]
     fn test_select_order_by() {
-        let expected_sql = "SELECT [musti].* FROM [musti] ORDER BY [foo], [baz] ASC, [bar] DESC";
-        let query = Select::from_table("musti")
-            .order_by("foo")
-            .order_by("baz".ascend())
-            .order_by("bar".descend());
+        let expected_sql = "SELECT [musti].* FROM [musti] ORDER BY [musti].[foo], [musti].[baz] ASC, [musti].[bar] DESC";
+        let query = Select::from_table(Musti::table())
+            .order_by(Musti::foo)
+            .order_by(Musti::baz.ascend())
+            .order_by(Musti::bar.descend());
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -819,24 +861,32 @@ mod tests {
 
     #[test]
     fn test_select_fields_from() {
-        let expected_sql = "SELECT [paw], [nose] FROM [cat].[musti]";
-        let query = Select::from_table(("cat", "musti"))
-            .column("paw")
-            .column("nose");
+        let expected_sql = "SELECT [musti].[paw], [musti].[nose] FROM [cat].[musti]";
+        let query = Select::from_table(Musti::table().database("cat"))
+            .column(Musti::paw)
+            .column(Musti::nose);
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(default_params(vec![]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "naukio"]
+    struct Naukio {
+        word: String,
+        age: i32,
+        paw: String,
+    }
+
     #[test]
     fn test_select_where_equals() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] = @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] = @P1",
             vec!["meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".equals("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.equals("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -846,11 +896,11 @@ mod tests {
     #[test]
     fn test_select_where_like() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] LIKE @P1",
             vec!["%meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".like("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.like("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -860,11 +910,11 @@ mod tests {
     #[test]
     fn test_select_where_not_like() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] NOT LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] NOT LIKE @P1",
             vec!["%meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_like("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.not_like("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -874,11 +924,11 @@ mod tests {
     #[test]
     fn test_select_where_begins_with() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] LIKE @P1",
             vec!["meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".begins_with("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.begins_with("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -888,11 +938,12 @@ mod tests {
     #[test]
     fn test_select_where_not_begins_with() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] NOT LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] NOT LIKE @P1",
             vec!["meow%"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_begins_with("meow"));
+        let query =
+            Select::from_table(Naukio::table()).so_that(Naukio::word.not_begins_with("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -902,11 +953,11 @@ mod tests {
     #[test]
     fn test_select_where_ends_into() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] LIKE @P1",
             vec!["%meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".ends_into("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.ends_into("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -916,26 +967,33 @@ mod tests {
     #[test]
     fn test_select_where_not_ends_into() {
         let expected = expected_values(
-            "SELECT [naukio].* FROM [naukio] WHERE [word] NOT LIKE @P1",
+            "SELECT [naukio].* FROM [naukio] WHERE [naukio].[word] NOT LIKE @P1",
             vec!["%meow"],
         );
 
-        let query = Select::from_table("naukio").so_that("word".not_ends_into("meow"));
+        let query = Select::from_table(Naukio::table()).so_that(Naukio::word.not_ends_into("meow"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
         assert_eq!(default_params(expected.1), params);
     }
 
+    #[derive(Entity)]
+    struct User {
+        #[column(name = "xmlField")]
+        xml: String,
+        id: i32,
+    }
+
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
-            r#"SELECT [users].* FROM [users] WHERE CAST([xmlField] AS NVARCHAR(MAX)) = @P1"#,
+            r#"SELECT [users].* FROM [users] WHERE CAST([users].[xmlField] AS NVARCHAR(MAX)) = @P1"#,
             vec![Value::xml("<cat>meow</cat>")],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("xmlField").equals(Value::xml("<cat>meow</cat>")));
+        let query = Select::from_table(User::table())
+            .so_that(Column::from(User::xml).equals(Value::xml("<cat>meow</cat>")));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -945,13 +1003,12 @@ mod tests {
     #[test]
     fn equality_with_a_lhs_xml_value() {
         let expected = expected_values(
-            r#"SELECT [users].* FROM [users] WHERE @P1 = CAST([xmlField] AS NVARCHAR(MAX))"#,
+            r#"SELECT [users].* FROM [users] WHERE @P1 = CAST([users].[xmlField] AS NVARCHAR(MAX))"#,
             vec![Value::xml("<cat>meow</cat>")],
         );
 
         let value_expr: Expression = Value::xml("<cat>meow</cat>").into();
-        let query =
-            Select::from_table("users").so_that(value_expr.equals(Column::from("xmlField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.equals(User::xml));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -961,12 +1018,12 @@ mod tests {
     #[test]
     fn difference_with_a_xml_value() {
         let expected = expected_values(
-            r#"SELECT [users].* FROM [users] WHERE CAST([xmlField] AS NVARCHAR(MAX)) <> @P1"#,
+            r#"SELECT [users].* FROM [users] WHERE CAST([users].[xmlField] AS NVARCHAR(MAX)) <> @P1"#,
             vec![Value::xml("<cat>meow</cat>")],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("xmlField").not_equals(Value::xml("<cat>meow</cat>")));
+        let query = Select::from_table(User::table())
+            .so_that(User::xml.not_equals(Value::xml("<cat>meow</cat>")));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -976,13 +1033,12 @@ mod tests {
     #[test]
     fn difference_with_a_lhs_xml_value() {
         let expected = expected_values(
-            r#"SELECT [users].* FROM [users] WHERE @P1 <> CAST([xmlField] AS NVARCHAR(MAX))"#,
+            r#"SELECT [users].* FROM [users] WHERE @P1 <> CAST([users].[xmlField] AS NVARCHAR(MAX))"#,
             vec![Value::xml("<cat>meow</cat>")],
         );
 
         let value_expr: Expression = Value::xml("<cat>meow</cat>").into();
-        let query =
-            Select::from_table("users").so_that(value_expr.not_equals(Column::from("xmlField")));
+        let query = Select::from_table(User::table()).so_that(value_expr.not_equals(User::xml));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -992,15 +1048,15 @@ mod tests {
     #[test]
     fn test_select_and() {
         let expected_sql =
-            "SELECT [naukio].* FROM [naukio] WHERE ([word] = @P1 AND [age] < @P2 AND [paw] = @P3)";
+            "SELECT [naukio].* FROM [naukio] WHERE ([naukio].[word] = @P1 AND [naukio].[age] < @P2 AND [naukio].[paw] = @P3)";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .and("age".less_than(10))
-            .and("paw".equals("warm"));
-        let query = Select::from_table("naukio").so_that(conditions);
+            .and(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"));
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1009,14 +1065,14 @@ mod tests {
 
     #[test]
     fn test_select_and_different_execution_order() {
-        let expected_sql = "SELECT [naukio].* FROM [naukio] WHERE ([word] = @P1 AND ([age] < @P2 AND [paw] = @P3))";
+        let expected_sql = "SELECT [naukio].* FROM [naukio] WHERE ([naukio].[word] = @P1 AND ([naukio].[age] < @P2 AND [naukio].[paw] = @P3))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .and("age".less_than(10).and("paw".equals("warm")));
-        let query = Select::from_table("naukio").so_that(conditions);
+            .and(Naukio::age.less_than(10).and(Naukio::paw.equals("warm")));
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1026,16 +1082,16 @@ mod tests {
     #[test]
     fn test_select_or() {
         let expected_sql =
-            "SELECT [naukio].* FROM [naukio] WHERE (([word] = @P1 OR [age] < @P2) AND [paw] = @P3)";
+            "SELECT [naukio].* FROM [naukio] WHERE (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3)";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .or("age".less_than(10))
-            .and("paw".equals("warm"));
+            .or(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"));
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1046,17 +1102,17 @@ mod tests {
     #[test]
     fn test_select_negation() {
         let expected_sql =
-            "SELECT [naukio].* FROM [naukio] WHERE (NOT (([word] = @P1 OR [age] < @P2) AND [paw] = @P3))";
+            "SELECT [naukio].* FROM [naukio] WHERE (NOT (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
-        let conditions = "word"
+        let conditions = Naukio::word
             .equals("meow")
-            .or("age".less_than(10))
-            .and("paw".equals("warm"))
+            .or(Naukio::age.less_than(10))
+            .and(Naukio::paw.equals("warm"))
             .not();
 
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1067,17 +1123,17 @@ mod tests {
     #[test]
     fn test_with_raw_condition_tree() {
         let expected_sql =
-            "SELECT [naukio].* FROM [naukio] WHERE (NOT (([word] = @P1 OR [age] < @P2) AND [paw] = @P3))";
+            "SELECT [naukio].* FROM [naukio] WHERE (NOT (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3))";
 
         let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
 
         let conditions = ConditionTree::not(
-            "word"
+            Naukio::word
                 .equals("meow")
-                .or("age".less_than(10))
-                .and("paw".equals("warm")),
+                .or(Naukio::age.less_than(10))
+                .and(Naukio::paw.equals("warm")),
         );
-        let query = Select::from_table("naukio").so_that(conditions);
+        let query = Select::from_table(Naukio::table()).so_that(conditions);
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1085,13 +1141,19 @@ mod tests {
         assert_eq!(default_params(expected_params), params);
     }
 
+    #[derive(Entity)]
+    struct Post {
+        user_id: i32,
+        published: bool,
+    }
+
     #[test]
     fn test_simple_inner_join() {
         let expected_sql =
             "SELECT [users].* FROM [users] INNER JOIN [posts] ON [users].[id] = [posts].[user_id]";
 
-        let query = Select::from_table("users")
-            .inner_join("posts".on(("users", "id").equals(Column::from(("posts", "user_id")))));
+        let query = Select::from_table(User::table())
+            .inner_join(Post::table().on(User::id.equals(Post::user_id)));
         let (sql, _) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1102,10 +1164,10 @@ mod tests {
         let expected_sql =
             "SELECT [users].* FROM [users] INNER JOIN [posts] ON ([users].[id] = [posts].[user_id] AND [posts].[published] = @P1)";
 
-        let query = Select::from_table("users").inner_join(
-            "posts".on(("users", "id")
-                .equals(Column::from(("posts", "user_id")))
-                .and(("posts", "published").equals(true))),
+        let query = Select::from_table(User::table()).inner_join(
+            Post::table().on(User::id
+                .equals(Post::user_id)
+                .and(Post::published.equals(true))),
         );
 
         let (sql, params) = Mssql::build(query).unwrap();
@@ -1119,8 +1181,8 @@ mod tests {
         let expected_sql =
             "SELECT [users].* FROM [users] LEFT JOIN [posts] ON [users].[id] = [posts].[user_id]";
 
-        let query = Select::from_table("users")
-            .left_join("posts".on(("users", "id").equals(Column::from(("posts", "user_id")))));
+        let query = Select::from_table(User::table())
+            .left_join(Post::table().on(User::id.equals(Post::user_id)));
         let (sql, _) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1131,10 +1193,10 @@ mod tests {
         let expected_sql =
             "SELECT [users].* FROM [users] LEFT JOIN [posts] ON ([users].[id] = [posts].[user_id] AND [posts].[published] = @P1)";
 
-        let query = Select::from_table("users").left_join(
-            "posts".on(("users", "id")
-                .equals(Column::from(("posts", "user_id")))
-                .and(("posts", "published").equals(true))),
+        let query = Select::from_table(User::table()).left_join(
+            Post::table().on(User::id
+                .equals(Post::user_id)
+                .and(Post::published.equals(true))),
         );
 
         let (sql, params) = Mssql::build(query).unwrap();
@@ -1143,22 +1205,35 @@ mod tests {
         assert_eq!(default_params(vec![Value::boolean(true),]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "meow"]
+    struct Meow {
+        bar: String,
+    }
+
     #[test]
     fn test_column_aliasing() {
-        let expected_sql = "SELECT [bar] AS [foo] FROM [meow]";
-        let query = Select::from_table("meow").column(Column::new("bar").alias("foo"));
+        let expected_sql = "SELECT [meow].[bar] AS [foo] FROM [meow]";
+        let query = Select::from_table(Meow::table()).column(Meow::bar.alias("foo"));
         let (sql, _) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "bar"]
+    struct Bar {
+        id: i32,
+        foo: String,
+    }
+
     #[test]
     fn test_limit_with_no_offset() {
         let expected_sql =
-            "SELECT [foo] FROM [bar] ORDER BY [id] OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
-        let query = Select::from_table("bar")
-            .column("foo")
-            .order_by("id")
+            "SELECT [bar].[foo] FROM [bar] ORDER BY [bar].[id] OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
+        let query = Select::from_table(Bar::table())
+            .column(Bar::foo)
+            .order_by(Bar::id)
             .limit(10);
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1168,10 +1243,10 @@ mod tests {
 
     #[test]
     fn test_offset_no_limit() {
-        let expected_sql = "SELECT [foo] FROM [bar] ORDER BY [id] OFFSET @P1 ROWS";
-        let query = Select::from_table("bar")
-            .column("foo")
-            .order_by("id")
+        let expected_sql = "SELECT [bar].[foo] FROM [bar] ORDER BY [bar].[id] OFFSET @P1 ROWS";
+        let query = Select::from_table(Bar::table())
+            .column(Bar::foo)
+            .order_by(Bar::id)
             .offset(10);
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1182,10 +1257,10 @@ mod tests {
     #[test]
     fn test_limit_with_offset() {
         let expected_sql =
-            "SELECT [foo] FROM [bar] ORDER BY [id] OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
-        let query = Select::from_table("bar")
-            .column("foo")
-            .order_by("id")
+            "SELECT [bar].[foo] FROM [bar] ORDER BY [bar].[id] OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
+        let query = Select::from_table(Bar::table())
+            .column(Bar::foo)
+            .order_by(Bar::id)
             .limit(9)
             .offset(10);
         let (sql, params) = Mssql::build(query).unwrap();
@@ -1197,8 +1272,11 @@ mod tests {
     #[test]
     fn test_limit_with_offset_no_given_order() {
         let expected_sql =
-            "SELECT [foo] FROM [bar] ORDER BY 1 OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
-        let query = Select::from_table("bar").column("foo").limit(9).offset(10);
+            "SELECT [bar].[foo] FROM [bar] ORDER BY 1 OFFSET @P1 ROWS FETCH NEXT @P2 ROWS ONLY";
+        let query = Select::from_table(Bar::table())
+            .column(Bar::foo)
+            .limit(9)
+            .offset(10);
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1301,20 +1379,34 @@ mod tests {
         assert!(params.is_empty());
     }
 
+    #[derive(Entity)]
+    #[tablename = "foo"]
+    struct Foo {
+        foo: String,
+        bar: String,
+        wtf: String,
+        lol: String,
+        omg: String,
+        baz: String,
+    }
+
     #[test]
     fn test_single_insert() {
-        let insert = Insert::single_into("foo")
-            .value("bar", "lol")
-            .value("wtf", "meow");
+        let insert = Insert::single_into(Foo::table())
+            .value(Foo::bar, "lol")
+            .value(Foo::wtf, "meow");
         let (sql, params) = Mssql::build(insert).unwrap();
 
-        assert_eq!("INSERT INTO [foo] ([bar],[wtf]) VALUES (@P1,@P2)", sql);
+        assert_eq!(
+            "INSERT INTO [foo] ([foo].[bar],[foo].[wtf]) VALUES (@P1,@P2)",
+            sql
+        );
         assert_eq!(vec![Value::from("lol"), Value::from("meow")], params);
     }
 
     #[test]
     fn test_single_insert_default() {
-        let insert = Insert::single_into("foo");
+        let insert = Insert::single_into(Foo::table());
         let (sql, params) = Mssql::build(insert).unwrap();
 
         assert_eq!("INSERT INTO [foo] DEFAULT VALUES", sql);
@@ -1324,24 +1416,24 @@ mod tests {
     #[test]
     #[cfg(feature = "mssql")]
     fn test_returning_insert() {
-        let insert = Insert::single_into("foo").value("bar", "lol");
-        let (sql, params) = Mssql::build(Insert::from(insert).returning(vec!["bar"])).unwrap();
+        let insert = Insert::single_into(Foo::table()).value(Foo::bar, "lol");
+        let (sql, params) = Mssql::build(Insert::from(insert).returning(vec![Foo::bar])).unwrap();
 
-        assert_eq!("DECLARE @generated_keys table([bar] NVARCHAR(255)) INSERT INTO [foo] ([bar]) OUTPUT [Inserted].[bar] INTO @generated_keys VALUES (@P1) SELECT [t].[bar] FROM @generated_keys AS g INNER JOIN [foo] AS [t] ON [t].[bar] = [g].[bar] WHERE @@ROWCOUNT > 0", sql);
+        assert_eq!("DECLARE @generated_keys table([bar] NVARCHAR(255)) INSERT INTO [foo] ([foo].[bar]) OUTPUT [Inserted].[bar] INTO @generated_keys VALUES (@P1) SELECT [t].[bar] FROM @generated_keys AS g INNER JOIN [foo] AS [t] ON [t].[bar] = [g].[bar] WHERE @@ROWCOUNT > 0", sql);
 
         assert_eq!(vec![Value::from("lol")], params);
     }
 
     #[test]
     fn test_multi_insert() {
-        let insert = Insert::multi_into("foo", vec!["bar", "wtf"])
+        let insert = Insert::multi_into(Foo::table(), vec![Foo::bar, Foo::wtf])
             .values(vec!["lol", "meow"])
             .values(vec!["omg", "hey"]);
 
         let (sql, params) = Mssql::build(insert).unwrap();
 
         assert_eq!(
-            "INSERT INTO [foo] ([bar],[wtf]) VALUES (@P1,@P2),(@P3,@P4)",
+            "INSERT INTO [foo] ([foo].[bar],[foo].[wtf]) VALUES (@P1,@P2),(@P3,@P4)",
             sql
         );
 
@@ -1358,11 +1450,11 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_single_unique() {
-        let table = Table::from("foo").add_unique_index("bar");
+        let table = Foo::table().add_unique_index(Foo::bar);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "bar"), "lol")
-            .value(("foo", "wtf"), "meow")
+            .value(Foo::bar, "lol")
+            .value(Foo::wtf, "meow")
             .into();
 
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
@@ -1383,12 +1475,10 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_single_unique_with_default() {
-        let unique_column = Column::from("bar").default("purr");
-        let table = Table::from("foo").add_unique_index(unique_column);
+        let unique_column = Column::from(Foo::bar).default("purr");
+        let table = Foo::table().add_unique_index(unique_column);
 
-        let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .into();
+        let insert: Insert<'_> = Insert::single_into(table).value(Foo::wtf, "meow").into();
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
 
         let expected_sql = indoc!(
@@ -1408,16 +1498,16 @@ mod tests {
     #[test]
     #[cfg(feature = "mssql")]
     fn test_single_insert_conflict_with_returning_clause() {
-        let table = Table::from("foo").add_unique_index("bar");
+        let table = Foo::table().add_unique_index(Foo::bar);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "bar"), "lol")
-            .value(("foo", "wtf"), "meow")
+            .value(Foo::bar, "lol")
+            .value(Foo::wtf, "meow")
             .into();
 
         let insert = insert
             .on_conflict(OnConflict::DoNothing)
-            .returning(vec![("foo", "bar"), ("foo", "wtf")]);
+            .returning(vec![Foo::bar, Foo::wtf]);
 
         let (sql, params) = Mssql::build(insert).unwrap();
 
@@ -1443,13 +1533,13 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_two_uniques() {
-        let table = Table::from("foo")
-            .add_unique_index("bar")
-            .add_unique_index("wtf");
+        let table = Foo::table()
+            .add_unique_index(Foo::bar)
+            .add_unique_index(Foo::wtf);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "bar"), "lol")
-            .value(("foo", "wtf"), "meow")
+            .value(Foo::bar, "lol")
+            .value(Foo::wtf, "meow")
             .into();
 
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
@@ -1470,15 +1560,13 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_two_uniques_with_default() {
-        let unique_column = Column::from("bar").default("purr");
+        let unique_column = Column::from(Foo::bar).default("purr");
 
-        let table = Table::from("foo")
+        let table = Foo::table()
             .add_unique_index(unique_column)
-            .add_unique_index("wtf");
+            .add_unique_index(Foo::wtf);
 
-        let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .into();
+        let insert: Insert<'_> = Insert::single_into(table).value(Foo::wtf, "meow").into();
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
 
         let expected_sql = indoc!(
@@ -1497,17 +1585,15 @@ mod tests {
 
     #[test]
     fn generated_unique_defaults_should_not_be_part_of_the_join_when_value_is_not_provided() {
-        let unique_column = Column::from("bar").default("purr");
-        let default_column = Column::from("lol").default(DefaultValue::Generated);
+        let unique_column = Column::from(Foo::bar).default("purr");
+        let default_column = Column::from(Foo::lol).default(crate::ast::DefaultValue::Generated);
 
-        let table = Table::from("foo")
+        let table = Foo::table()
             .add_unique_index(unique_column)
             .add_unique_index(default_column)
-            .add_unique_index("wtf");
+            .add_unique_index(Foo::wtf);
 
-        let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .into();
+        let insert: Insert<'_> = Insert::single_into(table).value(Foo::wtf, "meow").into();
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
 
         let expected_sql = indoc!(
@@ -1526,17 +1612,17 @@ mod tests {
 
     #[test]
     fn with_generated_unique_defaults_the_value_should_be_part_of_the_join() {
-        let unique_column = Column::from("bar").default("purr");
-        let default_column = Column::from("lol").default(DefaultValue::Generated);
+        let unique_column = Column::from(Foo::bar).default("purr");
+        let default_column = Column::from(Foo::lol).default(crate::ast::DefaultValue::Generated);
 
-        let table = Table::from("foo")
+        let table = Foo::table()
             .add_unique_index(unique_column)
             .add_unique_index(default_column)
-            .add_unique_index("wtf");
+            .add_unique_index(Foo::wtf);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .value(("foo", "lol"), "hiss")
+            .value(Foo::wtf, "meow")
+            .value(Foo::lol, "hiss")
             .into();
 
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
@@ -1565,11 +1651,11 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_compound_unique() {
-        let table = Table::from("foo").add_unique_index(vec!["bar", "wtf"]);
+        let table = Foo::table().add_unique_index(vec![Foo::bar, Foo::wtf]);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "bar"), "lol")
-            .value(("foo", "wtf"), "meow")
+            .value(Foo::bar, "lol")
+            .value(Foo::wtf, "meow")
             .into();
 
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
@@ -1590,13 +1676,11 @@ mod tests {
 
     #[test]
     fn test_single_insert_conflict_do_nothing_compound_unique_with_default() {
-        let bar = Column::from("bar").default("purr");
-        let wtf = Column::from("wtf");
+        let bar = Column::from(Foo::bar).default("purr");
+        let wtf = Column::from(Foo::wtf);
 
-        let table = Table::from("foo").add_unique_index(vec![bar, wtf]);
-        let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .into();
+        let table = Foo::table().add_unique_index(vec![bar, wtf]);
+        let insert: Insert<'_> = Insert::single_into(table).value(Foo::wtf, "meow").into();
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
 
         let expected_sql = indoc!(
@@ -1615,19 +1699,19 @@ mod tests {
 
     #[test]
     fn one_generated_value_in_compound_unique_removes_the_whole_index_from_the_join() {
-        let bar = Column::from("bar").default("purr");
-        let wtf = Column::from("wtf");
+        let bar = Column::from(Foo::bar).default("purr");
+        let wtf = Column::from(Foo::wtf);
 
-        let omg = Column::from("omg").default(DefaultValue::Generated);
-        let lol = Column::from("lol");
+        let omg = Column::from(Foo::omg).default(crate::ast::DefaultValue::Generated);
+        let lol = Column::from(Foo::lol);
 
-        let table = Table::from("foo")
+        let table = Foo::table()
             .add_unique_index(vec![bar, wtf])
             .add_unique_index(vec![omg, lol]);
 
         let insert: Insert<'_> = Insert::single_into(table)
-            .value(("foo", "wtf"), "meow")
-            .value(("foo", "lol"), "hiss")
+            .value(Foo::wtf, "meow")
+            .value(Foo::lol, "hiss")
             .into();
 
         let (sql, params) = Mssql::build(insert.on_conflict(OnConflict::DoNothing)).unwrap();
@@ -1655,21 +1739,26 @@ mod tests {
 
     #[test]
     fn test_distinct() {
-        let expected_sql = "SELECT DISTINCT [bar] FROM [test]";
-        let query = Select::from_table("test")
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT [test].[bar] FROM [test]";
+        let query = Select::from_table(TestEntity::table())
+            .column(TestEntity::bar)
             .distinct();
         let (sql, _) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test2"]
+    struct Test2Entity {
+        //
+    }
     #[test]
     fn test_distinct_with_subquery() {
-        let expected_sql = "SELECT DISTINCT (SELECT @P1 FROM [test2]), [bar] FROM [test]";
-        let query = Select::from_table("test")
-            .value(Select::from_table("test2").value(val!(1)))
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT (SELECT @P1 FROM [test2]), [test].[bar] FROM [test]";
+        let query = Select::from_table(TestEntity::table())
+            .value(Select::from_table(Test2Entity::table()).value(val!(1)))
+            .column(TestEntity::bar)
             .distinct();
 
         let (sql, _) = Mssql::build(query).unwrap();
@@ -1677,17 +1766,31 @@ mod tests {
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "baz"]
+    struct Baz {
+        a: String,
+    }
     #[test]
     fn test_from() {
         let expected_sql = "SELECT [foo].*, [bar].[a] FROM [foo], (SELECT [a] FROM [baz]) AS [bar]";
         let query = Select::default()
-            .and_from("foo")
-            .and_from(Table::from(Select::from_table("baz").column("a")).alias("bar"))
-            .value(Table::from("foo").asterisk())
-            .column(("bar", "a"));
+            .and_from(Foo::table())
+            .and_from(Table::from(Select::from_table(Baz::table()).column(Baz::a)).alias("bar"))
+            .value(Foo::table().asterisk())
+            .column(Baz::a);
 
         let (sql, _) = Mssql::build(query).unwrap();
         assert_eq!(expected_sql, sql);
+    }
+
+    #[derive(Entity)]
+    #[tablename = "A"]
+    struct A {
+        u: String,
+        x: i32,
+        y: i32,
+        z: String,
     }
 
     #[test]
@@ -1702,8 +1805,8 @@ mod tests {
         let inner = Select::default()
             .value(val!(1).alias("a"))
             .value(val!(2).alias("b"));
-        let row = Row::from(vec![col!(("A", "x")), col!(("A", "y"))]);
-        let query = Select::from_table("A").so_that(row.in_selection(inner));
+        let row = Row::from(vec![A::x, A::y]);
+        let query = Select::from_table(A::table()).so_that(row.in_selection(inner));
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1723,8 +1826,8 @@ mod tests {
         let inner = Select::default()
             .value(val!(1).alias("a"))
             .value(val!(2).alias("b"));
-        let row = Row::from(vec![col!(("A", "x")), col!(("A", "y"))]);
-        let query = Select::from_table("A").so_that(row.not_in_selection(inner));
+        let row = Row::from(vec![A::x, A::y]);
+        let query = Select::from_table(A::table()).so_that(row.not_in_selection(inner));
 
         let (sql, params) = Mssql::build(query).unwrap();
 
@@ -1746,11 +1849,11 @@ mod tests {
         let inner = Select::default()
             .value(val!(1).alias("a"))
             .value(val!(2).alias("b"));
-        let row = Row::from(vec![col!(("A", "x")), col!(("A", "y"))]);
+        let row = Row::from(vec![A::x, A::y]);
 
-        let query = Select::from_table("A")
-            .so_that(("A", "y").equals("bar"))
-            .and_where(("A", "z").equals("foo"))
+        let query = Select::from_table(A::table())
+            .so_that(A::y.equals("bar"))
+            .and_where(A::z.equals("foo"))
             .and_where(row.in_selection(inner));
 
         let (sql, params) = Mssql::build(query).unwrap();
@@ -1781,13 +1884,13 @@ mod tests {
         let inner = Select::default()
             .value(val!(1).alias("a"))
             .value(val!(2).alias("b"));
-        let row = Row::from(vec![col!(("A", "x")), col!(("A", "y"))]);
+        let row = Row::from(vec![A::x, A::y]);
 
-        let cond = ("A", "y")
+        let cond = A::y
             .equals("bar")
-            .or(("A", "z").equals("foo").and(row.in_selection(inner)));
+            .or(A::z.equals("foo").and(row.in_selection(inner)));
 
-        let query = Select::from_table("A").so_that(cond);
+        let query = Select::from_table(A::table()).so_that(cond);
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
@@ -1821,10 +1924,10 @@ mod tests {
         let cte_1 = Select::default()
             .value(val!(3).alias("c"))
             .value(val!(4).alias("d"));
-        let row_0 = Row::from(vec![col!(("A", "x")), col!(("A", "y"))]);
-        let row_1 = Row::from(vec![col!(("A", "u")), col!(("A", "z"))]);
+        let row_0 = Row::from(vec![A::x, A::y]);
+        let row_1 = Row::from(vec![A::u, A::z]);
 
-        let query = Select::from_table("A")
+        let query = Select::from_table(A::table())
             .so_that(row_0.in_selection(cte_0))
             .and_where(row_1.not_in_selection(cte_1));
 
@@ -1845,27 +1948,31 @@ mod tests {
 
     #[test]
     fn test_default_insert() {
-        let insert = Insert::single_into("foo")
-            .value("foo", "bar")
-            .value("baz", default_value());
+        let insert = Insert::single_into(Foo::table())
+            .value(Foo::foo, "bar")
+            .value(Foo::baz, default_value());
 
         let (sql, _) = Mssql::build(insert).unwrap();
 
-        assert_eq!("INSERT INTO [foo] ([foo],[baz]) VALUES (@P1,DEFAULT)", sql);
+        assert_eq!(
+            "INSERT INTO [foo] ([foo].[foo],[foo].[baz]) VALUES (@P1,DEFAULT)",
+            sql
+        );
     }
+
+    #[derive(Entity)]
+    #[tablename = "Toto"]
+    struct Toto {}
 
     #[test]
     fn join_is_inserted_positionally() {
-        let joined_table = Table::from("User").left_join(
-            "Post"
-                .alias("p")
-                .on(("p", "userId").equals(Column::from(("User", "id")))),
-        );
-        let q = Select::from_table(joined_table).and_from("Toto");
+        let joined_table =
+            User::table().left_join(Post::table().alias("p").on(Post::user_id.equals(User::id)));
+        let q = Select::from_table(joined_table).and_from(Toto::table());
         let (sql, _) = Mssql::build(q).unwrap();
 
         assert_eq!(
-            "SELECT [User].*, [Toto].* FROM [User] LEFT JOIN [Post] AS [p] ON [p].[userId] = [User].[id], [Toto]",
+            "SELECT [users].*, [Toto].* FROM [users] LEFT JOIN [posts] AS [p] ON [p].[user_id] = [users].[id], [Toto]",
             sql
         );
     }

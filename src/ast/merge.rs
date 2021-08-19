@@ -1,6 +1,5 @@
 use super::*;
 use crate::error::*;
-use crate::prelude::*;
 use std::convert::TryFrom;
 
 /// A builder for SQL `MERGE` queries.
@@ -71,22 +70,18 @@ impl<'a> Using<'a> {
     }
 }
 
-pub(crate) trait IntoUsing<'a, E>
-where
-    E: crate::prelude::Entity,
-{
-    fn into_using(self, alias: E, columns: Vec<Column<'a>>) -> Using<'a>;
+pub(crate) trait IntoUsing<'a> {
+    fn into_using(self, alias: Table<'a>, columns: Vec<Column<'a>>) -> Using<'a>;
 }
 
-impl<'a, I, E> IntoUsing<'a, E> for I
+impl<'a, I> IntoUsing<'a> for I
 where
     I: Into<Query<'a>>,
-    E: crate::prelude::Entity,
 {
-    fn into_using(self, alias: E, columns: Vec<Column<'a>>) -> Using<'a> {
+    fn into_using(self, alias: Table<'a>, columns: Vec<Column<'a>>) -> Using<'a> {
         Using {
             base_query: self.into(),
-            as_table: Table::from(alias),
+            as_table: alias,
             columns,
             on_conditions: ConditionTree::NoCondition,
         }
@@ -152,20 +147,21 @@ impl<'a> TryFrom<Insert<'a>> for Merge<'a> {
 
         let bare_columns: Vec<_> = columns.clone().into_iter().map(|c| c.into_bare()).collect();
 
+        let dual_table = Table {
+            typ: TableType::Table("dual".into()),
+            alias: None,
+            database: None,
+            index_definitions: Vec::new(),
+        };
         let using = query
-            .into_using(Dual::default(), bare_columns.clone())
+            .into_using(dual_table.clone(), bare_columns.clone())
             .on(table.join_conditions(&columns).unwrap());
 
         let dual_columns: Vec<_> = columns
             .into_iter()
             .map(|c| {
                 let mut c = c.clone();
-                c.table.replace(Table {
-                    typ: TableType::Table("Dual".into()),
-                    alias: None,
-                    database: None,
-                    index_definitions: Vec::new(),
-                });
+                c.table.replace(dual_table.clone());
                 c
             })
             .collect();
@@ -178,10 +174,4 @@ impl<'a> TryFrom<Insert<'a>> for Merge<'a> {
 
         Ok(merge)
     }
-}
-
-#[derive(Clone, Debug, Default, Entity)]
-#[tablename = "dual"]
-struct Dual {
-    id: i32,
 }

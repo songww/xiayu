@@ -25,6 +25,7 @@ serde = { version = "1.0", package = "serde", optional = true, features = [ "der
 num-bigint = { version = "0.4", optional = true }
 bigdecimal = { version = "0.2", package = "bigdecimal", optional = true }
 derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
+indoc = { version = "1.0", optional = true }
 
 [features]
 default = [ "tokio-rustls", "postgres" ]
@@ -35,7 +36,7 @@ uuid-type = [ "uuid", "sqlx/uuid" ]
 json-type = [ "serde", "serde_json", "base64", "sqlx/json" ]
 # serde = [ "dep:serde", "chrono/serde" ]
 chrono-type = [ "chrono", "sqlx/chrono" ]
-mssql = [ "uuid-type", "chrono-type", "either", "sqlx/mssql" ]
+mssql = [ "uuid-type", "chrono-type", "either", "sqlx/mssql", "indoc" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
 postgres = [ "sqlx/postgres" ]
