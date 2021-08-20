@@ -5,7 +5,7 @@
 //! one. Everything related to the tree generation is in the
 //! [ast](../ast/index.html) module.
 //!
-//! For prelude, all important imports are in `quaint::visitor::*`;
+//! For prelude, all important imports are in `xiayu::visitors::*`;
 #[cfg(feature = "mssql")]
 mod mssql;
 #[cfg(feature = "mysql")]
@@ -46,7 +46,7 @@ pub trait Visitor<'a> {
     /// The point of entry for visiting query ASTs.
     ///
     /// ```
-    /// # use quaint::{ast::*, visitor::*, error::Error};
+    /// # use xiayu::{ast::*, visitors::*, error::Error};
     /// # fn main() -> Result {
     /// let query = Select::from_table("cats");
     /// let (sqlite, _) = Sqlite::build(query.clone())?;

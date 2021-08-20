@@ -1,10 +1,5 @@
 #![cfg_attr(feature = "docs", feature(doc_cfg))]
 
-#[macro_use]
-extern crate derive_more;
-#[macro_use]
-extern crate xiayu_derive;
-
 #[cfg(not(any(
     feature = "sqlite",
     feature = "postgres",
@@ -31,8 +26,11 @@ pub mod serde;
 pub type Result<T> = std::result::Result<T, error::Error>;
 
 pub mod prelude {
+    use std::future::Future;
     use std::marker::PhantomData;
 
+    use sqlx::Database;
+    use sqlx::Executor;
     pub use xiayu_derive::Entity;
 
     pub use super::ast::*;
@@ -47,6 +45,32 @@ pub mod prelude {
         fn tablename() -> &'static str;
         fn columns() -> &'static [Column<'static>];
         fn table() -> Table<'static>;
+
+        /*
+        fn select<'a, T, C>(columns: T) -> Select<'a>
+        where
+            T: IntoIterator<Item = C>,
+            C: Into<Column<'a>>,
+        {
+            Select::from_table(Self::table()).columns(columns)
+        }
+
+        fn save<'c, DB: Executor<'c>>(
+            &mut self,
+            db: &DB,
+        ) -> Box<dyn Future<Output = Result<()>>> where Self: HasPrimaryKey {
+            // if pk!(self)
+            let mut inserting = Insert::single_into(Self::table());
+            for (col, val) in self.colvals() {
+                inserting = inserting.value(col, val);
+            }
+            Box::new(async {
+                let rows_affected = db.execute(inserting).await?.rows_affected();
+                Ok(())
+            })
+        }
+        fn delete(&mut self, db: &DB) -> Box<dyn Future<Output = Result<()>>>
+        */
     }
 
     pub trait EntityInstantiated: Entity {
@@ -57,10 +81,6 @@ pub mod prelude {
         fn columns(&self) -> &'static [Column<'static>] {
             <Self as Entity>::columns()
         }
-
-        // fn table(&self) -> Table<'static> {
-        //     <Self as Entity>::table()
-        // }
     }
 
     impl<T> EntityInstantiated for T where T: Entity {}
@@ -68,6 +88,7 @@ pub mod prelude {
     pub trait HasPrimaryKey: Entity {
         type PrimaryKey;
         fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
+        // fn get(pk: Self::PrimaryKey, db: &DB) -> Box<dyn Future<Output = Result<()>>>;
     }
 
     #[derive(Clone)]
