@@ -1,7 +1,14 @@
 [package]
 name = "xiayu"
-version = "0.1.0"
+version = "0.1.0-alpha0"
 edition = "2018"
+authors = ["songww <sww4718168@163.com>"]
+description = "ORM powered by SQLx."
+documentation = "https://docs.rs/xiayu"
+homepage = "https://github.com/songww/xiayu"
+keywords = ["orm", "sqlx", "sqlite", "mysql", "mssql", "postgresql"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 [package.metadata.docs.rs]
 features = ["docs", "all"]
