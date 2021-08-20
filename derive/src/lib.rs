@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate darling;
 
-use darling::{FromDeriveInput, FromMeta, ToTokens};
+use darling::{FromDeriveInput, FromMeta};
 use inflector::Inflector;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote, quote_spanned};
-use syn::spanned::Spanned;
+use quote::{format_ident, quote};
 
 #[derive(FromDeriveInput)]
 #[darling(attributes(entity), supports(struct_named))]
@@ -99,7 +98,22 @@ struct ColumnOptions {
     attrs: Vec<syn::Attribute>,
 }
 
-macro_rules! quote_option {
+/*
+macro_rules! quote_optional2 {
+    ($expr:expr) => {
+        match $expr {
+            Some(value) => {
+                quote! { #value }
+            }
+            None => {
+                quote! { () }
+            }
+        }
+    };
+}
+*/
+
+macro_rules! quote_optional {
     ($expr:expr) => {
         match $expr {
             Some(value) => {
@@ -150,27 +164,42 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
     let mut names = Vec::new();
     let mut types = Vec::new();
     let mut column_options = Vec::new();
+
+    let mut tokens = TokenStream2::new();
+
+    let found_crate =
+        proc_macro_crate::crate_name("xiayu").expect("xiayu is present in `Cargo.toml`");
+
+    let namespace = match found_crate {
+        proc_macro_crate::FoundCrate::Itself => quote!(crate::prelude),
+        proc_macro_crate::FoundCrate::Name(name) => {
+            let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
+            quote!( #ident::prelude )
+        }
+    };
+
+    // println!("-----------------> namespace: {}", namespace.to_string());
+
     if let darling::ast::Data::Struct(darling::ast::Fields { fields, .. }) = entity_def.data {
         for field in fields.into_iter() {
-            // println!("field: {:?}", field);
             let ty = field.ty;
             types.push(ty.clone());
-            let default_name = field.ident.map(|i| i.to_string()).unwrap();
-            let name = field.name.unwrap_or(default_name);
+            let name = field.ident.map(|i| i.to_string()).unwrap();
+            let column_name = field.name.unwrap_or(name.to_string());
             let is_primary_key = field.primary_key.is_some();
             let autoincrement = field.autoincrement.is_some();
-            let comment = quote_option!(field.comment.map(|v| { v.value().to_string() }));
-            let foreign_key = quote_option!(field.foreign_key.map(|v| v.value().to_string()));
+            let comment = quote_optional!(field.comment.map(|v| { v.value().to_string() }));
+            let foreign_key = quote_optional!(field.foreign_key.map(|v| v.value().to_string()));
             let unique = field.unique;
-            let length = quote_option!(field.length);
+            let length = quote_optional!(field.length);
             let quote_name = field.quote;
-            let default = quote_option!(field.default);
-            let onupdate = quote_option!(field.onupdate);
-            let server_default = quote_option!(field.server_default);
-            let server_onupdate = quote_option!(field.server_onupdate);
+            let default = quote_optional!(field.default);
+            let onupdate = quote_optional!(field.onupdate);
+            let server_default = quote_optional!(field.server_default);
+            let server_onupdate = quote_optional!(field.server_onupdate);
             let column = quote! {
-                ::xiayu::prelude::ColumnOptions::new(
-                    /* name: */ #name,
+                ColumnOptions::new(
+                    /* name: */ #column_name,
                     /* tablename: */ #tablename,
                     /* primary_key: */ #is_primary_key,
                     /* autoincrement: */ #autoincrement,
@@ -187,7 +216,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
                 )
             };
             if is_primary_key {
-                primary_key_type = Some(quote! { #ty });
+                primary_key_type = Some(quote! { #namespace::ColumnOptions<#ty> });
                 // println!("primary_key_definition: {:?}", column.clone().to_string());
                 primary_key_column = Some(column.clone());
             }
@@ -197,34 +226,27 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
     } else {
         unreachable!()
     }
-    let primary_key_type = match primary_key_type {
-        Some(pk) => pk,
-        None => {
-            quote_spanned! { input.span() => ::std::compile_error!( "`PrimaryKey` is missing." ) }
-        }
-    };
-    let mut tokens = TokenStream2::new();
 
     // let stringified_names = names.iter().map(|name| name.to_string());
 
+    let table_def = quote! {
+        #namespace::Table {
+            typ: #namespace::TableType::Table(::std::borrow::Cow::Borrowed(#tablename)),
+            alias: None,
+            database: None,
+            index_definitions: Vec::new(),
+        }
+    };
+
     tokens.extend(quote! {
         impl #ident {
-            pub const tablename: &'static str = #tablename;
+            const _table: #namespace::Table<'static> = #table_def;
 
-            pub const primary_key: ::xiayu::prelude::ColumnOptions<#primary_key_type> = #primary_key_column;
-
-            #(pub const #names: ::xiayu::prelude::ColumnOptions<#types> = #column_options;) *
+            #(pub const #names: #namespace::ColumnOptions<#types> = #column_options;) *
         }
 
-        impl ::xiayu::prelude::Entity for #ident {
-            type PrimaryKey = ::xiayu::prelude::ColumnOptions<#primary_key_type>;
-
-            const COLUMNS: &'static [ ::xiayu::prelude::Column<'static> ] = &[ #(( #ident::#names.column() )), * ];
-
-            #[inline]
-            fn primary_key() -> <Self as ::xiayu::prelude::Entity>::PrimaryKey { 
-                #ident::primary_key
-            }
+        impl #namespace::Entity for #ident {
+            const COLUMNS: &'static [ #namespace::Column<'static> ] = &[ #(( #ident::#names.column() )), * ];
 
             #[inline]
             fn tablename() -> &'static str {
@@ -232,16 +254,35 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
-            fn columns() -> &'static [::xiayu::prelude::Column<'static>] {
-                // &[ #(( #ident::#names.column() )), * ]
+            fn columns() -> &'static [#namespace::Column<'static>] {
                 Self::COLUMNS
             }
 
             #[inline]
-            fn table() -> ::xiayu::prelude::Table<'static> {
-                #ident::primary_key.table()
+            fn table() -> #namespace::Table<'static> {
+                #ident::_table.clone()
             }
         }
+
     });
+
+    if primary_key_type.is_some() {
+        // impl HasPrimaryKey if PrimaryKey exists.
+        let token = quote! {
+            impl #ident {
+                const _primary_key: <Self as #namespace::HasPrimaryKey>::PrimaryKey = #primary_key_column;
+            }
+
+            impl #namespace::HasPrimaryKey for #ident {
+                type PrimaryKey = #primary_key_type;
+                #[inline]
+                fn primary_key() -> <Self as #namespace::HasPrimaryKey>::PrimaryKey {
+                    #ident::_primary_key
+                }
+            }
+        };
+        // println!("token ------- pk definition -------> {}", token.to_string());
+        tokens.extend(token);
+    };
     tokens.into()
 }

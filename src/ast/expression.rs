@@ -1,4 +1,4 @@
-#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 use super::compare::{JsonCompare, JsonType};
 use crate::ast::*;
 use query::SelectQuery;
@@ -46,9 +46,9 @@ impl<'a> Expression<'a> {
     #[allow(dead_code)]
     pub(crate) fn is_json_value(&self) -> bool {
         match &self.kind {
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             ExpressionKind::Parameterized(Value::Json(_)) => true,
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             ExpressionKind::Value(expr) => expr.is_json_value(),
             _ => false,
         }
@@ -106,7 +106,10 @@ impl<'a> Expression<'a> {
     /// Finds all comparisons between a tuple and a selection. If returning some
     /// CTEs, they should be handled in the calling layer.
     #[cfg(feature = "mssql")]
-    pub(crate) fn convert_tuple_selects_to_ctes(self, level: &mut usize) -> (Self, Vec<CommonTableExpression<'a>>) {
+    pub(crate) fn convert_tuple_selects_to_ctes(
+        self,
+        level: &mut usize,
+    ) -> (Self, Vec<CommonTableExpression<'a>>) {
         match self.kind {
             ExpressionKind::Selection(s) => {
                 let (selection, ctes) = s.convert_tuple_selects_to_ctes(level);
@@ -402,7 +405,11 @@ impl<'a> Comparable<'a> for Expression<'a> {
         T: Into<Expression<'a>>,
         V: Into<Expression<'a>>,
     {
-        Compare::Between(Box::new(self), Box::new(left.into()), Box::new(right.into()))
+        Compare::Between(
+            Box::new(self),
+            Box::new(left.into()),
+            Box::new(right.into()),
+        )
     }
 
     fn not_between<T, V>(self, left: T, right: V) -> Compare<'a>
@@ -410,7 +417,11 @@ impl<'a> Comparable<'a> for Expression<'a> {
         T: Into<Expression<'a>>,
         V: Into<Expression<'a>>,
     {
-        Compare::NotBetween(Box::new(self), Box::new(left.into()), Box::new(right.into()))
+        Compare::NotBetween(
+            Box::new(self),
+            Box::new(left.into()),
+            Box::new(right.into()),
+        )
     }
 
     fn compare_raw<T, V>(self, raw_comparator: T, right: V) -> Compare<'a>
@@ -418,58 +429,80 @@ impl<'a> Comparable<'a> for Expression<'a> {
         T: Into<Cow<'a, str>>,
         V: Into<Expression<'a>>,
     {
-        Compare::Raw(Box::new(self), raw_comparator.into(), Box::new(right.into()))
+        Compare::Raw(
+            Box::new(self),
+            raw_comparator.into(),
+            Box::new(right.into()),
+        )
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayContains(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayContains(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayNotContains(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayNotContains(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayBeginsWith(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayBeginsWith(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayNotBeginsWith(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayNotBeginsWith(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayEndsInto(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayEndsInto(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
     {
-        Compare::JsonCompare(JsonCompare::ArrayNotEndsInto(Box::new(self), Box::new(item.into())))
+        Compare::JsonCompare(JsonCompare::ArrayNotEndsInto(
+            Box::new(self),
+            Box::new(item.into()),
+        ))
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn json_type_equals<T>(self, json_type: T) -> Compare<'a>
     where
         T: Into<JsonType>,

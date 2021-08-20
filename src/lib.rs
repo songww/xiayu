@@ -13,7 +13,7 @@ extern crate xiayu_derive;
 )))]
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
-#[cfg(feature = "bigdecimal")]
+#[cfg(feature = "bigdecimal-type")]
 extern crate bigdecimal as bigdecimal;
 
 #[macro_use]
@@ -22,9 +22,11 @@ mod macros;
 pub mod visitors;
 pub mod ast;
 pub mod error;
+/*
 #[cfg(feature = "serde")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "serde")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
 pub mod serde;
+*/
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 
@@ -36,21 +38,18 @@ pub mod prelude {
     pub use super::ast::*;
     pub use super::Result;
 
+    #[derive(Clone, Debug)]
+    pub struct DefaultValue<T>(fn() -> T);
+
     /// select().where(Entity::last_modified == now())
     pub trait Entity {
-        type PrimaryKey;
         const COLUMNS: &'static [Column<'static>];
-        fn primary_key() -> <Self as Entity>::PrimaryKey;
         fn tablename() -> &'static str;
         fn columns() -> &'static [Column<'static>];
         fn table() -> Table<'static>;
     }
 
-    pub trait EntityInstanced: Entity {
-        fn primary_key(&self) -> <Self as Entity>::PrimaryKey {
-            <Self as Entity>::primary_key()
-        }
-
+    pub trait EntityInstantiated: Entity {
         fn tablename(&self) -> &'static str {
             <Self as Entity>::tablename()
         }
@@ -59,12 +58,17 @@ pub mod prelude {
             <Self as Entity>::columns()
         }
 
-        fn table(&self) -> Table<'static> {
-            <Self as Entity>::table()
-        }
+        // fn table(&self) -> Table<'static> {
+        //     <Self as Entity>::table()
+        // }
     }
 
-    impl<T> EntityInstanced for T where T: Entity {}
+    impl<T> EntityInstantiated for T where T: Entity {}
+
+    pub trait HasPrimaryKey: Entity {
+        type PrimaryKey;
+        fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
+    }
 
     #[derive(Clone)]
     pub struct ColumnOptions<T> {
@@ -83,7 +87,7 @@ pub mod prelude {
         /// The name of this column as represented in the database. This argument may be the first positional argument, or specified via keyword.
         length: Option<usize>,
         quote: bool,
-        default: Option<T>,
+        default: Option<DefaultValue<T>>,
         _phantom: PhantomData<T>,
         /*
         onupdate: Option<Arc<Box<dyn Fn() -> T>>>,
@@ -103,7 +107,7 @@ pub mod prelude {
             unique: bool,
             length: Option<usize>,
             quote: bool,
-            default: Option<T>,
+            default: Option<DefaultValue<T>>,
         ) -> Self {
             Self {
                 name,
@@ -138,19 +142,101 @@ pub mod prelude {
                 index_definitions: Vec::new(),
             }
         }
+
+        pub fn c(&self) -> Column<'static> {
+            self.column()
+        }
+
+        pub fn t(&self) -> Table<'static> {
+            self.table()
+        }
     }
 
     impl<'a, T> From<ColumnOptions<T>> for Column<'a> {
         fn from(options: ColumnOptions<T>) -> Self {
-            options.column()
+            options.c()
         }
     }
 
     impl<'a, T> From<&ColumnOptions<T>> for Column<'a> {
         fn from(options: &ColumnOptions<T>) -> Self {
-            options.column()
+            options.c()
         }
     }
+
+    impl<'a, T> From<ColumnOptions<T>> for Expression<'a> {
+        fn from(col: ColumnOptions<T>) -> Self {
+            Expression {
+                kind: ExpressionKind::Column(Box::new(col.column())),
+                alias: None,
+            }
+        }
+    }
+
+    impl<'a, T> From<&ColumnOptions<T>> for Expression<'a> {
+        fn from(col: &ColumnOptions<T>) -> Self {
+            Expression {
+                kind: ExpressionKind::Column(Box::new(col.column())),
+                alias: None,
+            }
+        }
+    }
+
+    impl<'a, T> Aliasable<'a> for ColumnOptions<T> {
+        type Target = Column<'a>;
+
+        fn alias<A>(self, alias: A) -> Self::Target
+        where
+            A: Into<std::borrow::Cow<'a, str>>,
+        {
+            let mut target = self.column();
+            target.alias = Some(alias.into());
+            target
+        }
+    }
+
+    impl<'a, T> Aliasable<'a> for T
+    where
+        T: Entity,
+    {
+        type Target = Table<'a>;
+
+        fn alias<A>(self, alias: A) -> Self::Target
+        where
+            A: Into<::std::borrow::Cow<'a, str>>,
+        {
+            let mut table = T::table();
+            table.alias.replace(alias.into());
+            table
+        }
+    }
+
+    impl<'a, T> IntoOrderDefinition<'a> for ColumnOptions<T> {
+        fn into_order_definition(self) -> OrderDefinition<'a> {
+            (self.column().into(), None)
+        }
+    }
+
+    impl<'a, T> Orderable<'a> for ColumnOptions<T> {
+        fn order(self, order: Option<Order>) -> OrderDefinition<'a> {
+            (self.column().into(), order)
+        }
+    }
+
+    /*
+    impl<'a, T> PartialEq for ColumnOptions<T> {
+        fn eq(&self, other: &ColumnOptions<T>) -> bool {
+            self.name == other.name && self.table == other.table
+        }
+    }
+    */
+
+    /*
+    impl<'a> ::xiayu::prelude::Selectable<'a> for #ident {
+        fn select<C: AsRef<&[Column]>>(columns: C) {}
+        //
+    }
+    */
 
     pub struct Many<T>
     where

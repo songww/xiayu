@@ -6,6 +6,7 @@ use crate::{
     ast::Value,
     // connector::{ResultRow, ResultSet},
     error::{Error, ErrorKind},
+    visitors::Visitor,
 };
 use serde::{de::Error as SerdeError, de::*};
 
@@ -128,20 +129,20 @@ impl<'de> Deserializer<'de> for ValueDeserializer<'de> {
             Value::Double(Some(num)) => visitor.visit_f64(num),
             Value::Double(None) => visitor.visit_none(),
 
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(Some(num)) => {
                 use crate::bigdecimal::ToPrimitive;
                 visitor.visit_f64(num.to_f64().unwrap())
             }
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(None) => visitor.visit_none(),
 
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(Some(uuid)) => visitor.visit_string(uuid.to_string()),
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(None) => visitor.visit_none(),
 
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(Some(value)) => {
                 let de = value.into_deserializer();
 
@@ -152,25 +153,25 @@ impl<'de> Deserializer<'de> for ValueDeserializer<'de> {
                     ))
                 })
             }
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(None) => visitor.visit_none(),
 
             Value::Xml(Some(s)) => visitor.visit_string(s.into_owned()),
             Value::Xml(None) => visitor.visit_none(),
 
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(Some(dt)) => visitor.visit_string(dt.to_rfc3339()),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(None) => visitor.visit_none(),
 
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(Some(d)) => visitor.visit_string(format!("{}", d)),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(None) => visitor.visit_none(),
 
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(Some(t)) => visitor.visit_string(format!("{}", t)),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(None) => visitor.visit_none(),
 
             Value::Array(Some(values)) => {

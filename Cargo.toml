@@ -6,7 +6,6 @@ edition = "2018"
 [package.metadata.docs.rs]
 features = ["docs", "all"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "xiayu"
 
@@ -20,27 +19,28 @@ sqlx = { version = "0.5" }
 either = { version = "1.6", optional = true }
 serde_json = { version = "1.0", optional = true }
 base64 = { version = "0.13", optional = true }
-uuid_ = { version = "0.8", package = "uuid", optional = true }
-chrono_ = { version = "0.4", package = "chrono", optional = true }
-serde_ = { version = "1.0", package = "serde", optional = true }
+uuid = { version = "0.8", optional = true, features = [ "v4" ] }
+chrono = { version = "0.4", package = "chrono", optional = true }
+serde = { version = "1.0", package = "serde", optional = true, features = [ "derive" ] }
 num-bigint = { version = "0.4", optional = true }
-bigdecimal_ = { version = "0.2", package = "bigdecimal", optional = true }
+bigdecimal = { version = "0.2", package = "bigdecimal", optional = true }
 derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
+indoc = { version = "1.0", optional = true }
 
 [features]
-default = [ ]
+default = [ "tokio-rustls", "postgres" ]
 docs = []
 tls = [ "sqlx/tls" ]
 any = [ "sqlx/any" ]
-uuid = [ "uuid_", "sqlx/uuid" ]
-json = [ "serde", "serde_json", "base64", "sqlx/json" ]
-serde = [ "serde_", "chrono_/serde" ]
-chrono = [ "chrono_", "sqlx/chrono" ]
-mssql = [ "uuid", "chrono", "either", "sqlx/mssql" ]
+uuid-type = [ "uuid", "sqlx/uuid" ]
+json-type = [ "serde", "serde_json", "base64", "sqlx/json" ]
+# serde = [ "dep:serde", "chrono/serde" ]
+chrono-type = [ "chrono", "sqlx/chrono" ]
+mssql = [ "uuid-type", "chrono-type", "either", "sqlx/mssql", "indoc" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
 postgres = [ "sqlx/postgres" ]
-bigdecimal = [ "bigdecimal_", "num-bigint", "sqlx/bigdecimal" ]
+bigdecimal-type = [ "bigdecimal", "num-bigint", "sqlx/bigdecimal" ]
 tokio-rustls = [ "sqlx/runtime-tokio-rustls" ]
 tokio-native-tls = [ "sqlx/runtime-tokio-native-tls" ]
 async-std-rustls = [ "sqlx/runtime-async-std-rustls" ]
@@ -51,16 +51,15 @@ actix-native-tls = [ "sqlx/runtime-actix-native-tls" ]
 all = [
     "any",
     "tls",
-    "json",
-    "uuid",
-    "serde",
-    "chrono",
+    "json-type",
+    "uuid-type",
+    "chrono-type",
     #"mssql",
     "mysql",
     "serde",
     "sqlite",
     "postgres",
-    "bigdecimal",
+    "bigdecimal-type",
     "async-std-rustls",
     "async-std-native-tls",
     "tokio-rustls",

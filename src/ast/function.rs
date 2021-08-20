@@ -2,13 +2,13 @@ mod aggregate_to_string;
 mod average;
 mod coalesce;
 mod count;
-#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 mod json_extract;
 mod lower;
 mod maximum;
 mod minimum;
 mod row_number;
-#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg(all(feature = "json-type", feature = "postgres"))]
 mod row_to_json;
 mod sum;
 mod upper;
@@ -17,13 +17,13 @@ pub use aggregate_to_string::*;
 pub use average::*;
 pub use coalesce::*;
 pub use count::*;
-#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 pub use json_extract::*;
 pub use lower::*;
 pub use maximum::*;
 pub use minimum::*;
 pub use row_number::*;
-#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg(all(feature = "json-type", feature = "postgres"))]
 pub use row_to_json::*;
 pub use sum::*;
 pub use upper::*;
@@ -41,7 +41,7 @@ pub struct Function<'a> {
 /// A database function type
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum FunctionType<'a> {
-    #[cfg(all(feature = "json", feature = "postgres"))]
+    #[cfg(all(feature = "json-type", feature = "postgres"))]
     RowToJson(RowToJson<'a>),
     RowNumber(RowNumber<'a>),
     Count(Count<'a>),
@@ -53,7 +53,7 @@ pub(crate) enum FunctionType<'a> {
     Minimum(Minimum<'a>),
     Maximum(Maximum<'a>),
     Coalesce(Coalesce<'a>),
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     JsonExtract(JsonExtract<'a>),
 }
 
@@ -69,10 +69,10 @@ impl<'a> Aliasable<'a> for Function<'a> {
     }
 }
 
-#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg(all(feature = "json-type", feature = "postgres"))]
 function!(RowToJson);
 
-#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 function!(JsonExtract);
 
 function!(

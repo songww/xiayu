@@ -1,7 +1,7 @@
 /// Convert given set of tuples into `Values`.
 ///
 /// ```rust
-/// # use quaint::{col, values, ast::*, visitor::{Visitor, Sqlite}};
+/// # use xiayu::{col, values, ast::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), quaint::error::Error> {
 ///
 /// let condition = Row::from((col!("id"), col!("name")))
@@ -28,7 +28,7 @@ macro_rules! values {
 /// calculations, e.g.
 ///
 /// ``` rust
-/// # use quaint::{col, val, ast::*, visitor::{Visitor, Sqlite}};
+/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), quaint::error::Error> {
 /// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
 ///
@@ -61,7 +61,7 @@ macro_rules! col {
 /// e.g.
 ///
 /// ``` rust
-/// # use quaint::{col, val, ast::*, visitor::{Visitor, Sqlite}};
+/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), quaint::error::Error> {
 /// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
 ///

@@ -95,9 +95,9 @@ impl<'a> Visitor<'a> for Mysql<'a> {
 
                 return Err(builder.build());
             }
-            #[cfg(feature = "bigdecimal")]
+            #[cfg(feature = "bigdecimal-type")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "json")]
+            #[cfg(feature = "json-type")]
             Value::Json(j) => match j {
                 Some(ref j) => {
                     let s = serde_json::to_string(&j)?;
@@ -105,15 +105,15 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 }
                 None => None,
             },
-            #[cfg(feature = "uuid")]
+            #[cfg(feature = "uuid-type")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
+            #[cfg(feature = "chrono-type")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
         };
@@ -235,7 +235,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
     }
 
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(feature = "json-type")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.write("JSON_CONTAINS")?;
@@ -258,7 +258,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             }
         }
 
-        #[cfg(not(feature = "json"))]
+        #[cfg(not(feature = "json-type"))]
         {
             self.visit_regular_equality_comparison(left, right)
         }
@@ -269,7 +269,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         left: Expression<'a>,
         right: Expression<'a>,
     ) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(feature = "json-type")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.write("NOT JSON_CONTAINS")?;
@@ -292,13 +292,13 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             }
         }
 
-        #[cfg(not(feature = "json"))]
+        #[cfg(not(feature = "json-type"))]
         {
             self.visit_regular_difference_comparison(left, right)
         }
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> visitors::Result {
         if json_extract.extract_as_string {
             self.write("JSON_UNQUOTE(")?;
@@ -323,7 +323,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -343,7 +343,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -369,7 +369,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -397,7 +397,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         Ok(())
     }
 
-    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         left: Expression<'a>,
@@ -440,6 +440,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::prelude::*;
     use crate::visitors::*;
 
     fn expected_values<'a, T>(sql: &'static str, params: Vec<T>) -> (String, Vec<Value<'a>>)
@@ -462,19 +463,33 @@ mod tests {
         result
     }
 
+    #[derive(Entity)]
+    #[tablename = "users"]
+    struct UserWithoutAttributes {}
+
     #[test]
     fn test_single_row_insert_default_values() {
-        let query = Insert::single_into("users");
+        let query = Insert::single_into(UserWithoutAttributes::table());
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!("INSERT INTO `users` () VALUES ()", sql);
         assert_eq!(default_params(vec![]), params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "users"]
+    struct User {
+        id: i32,
+        foo: i32,
+        #[cfg(feature = "json-type")]
+        #[column(name = "jsonField")]
+        json: serde_json::Value,
+    }
+
     #[test]
     fn test_single_row_insert() {
         let expected = expected_values("INSERT INTO `users` (`foo`) VALUES (?)", vec![10]);
-        let query = Insert::single_into("users").value("foo", 10);
+        let query = Insert::single_into(User::table()).value(User::foo, 10);
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -484,7 +499,7 @@ mod tests {
     #[test]
     fn test_multi_row_insert() {
         let expected = expected_values("INSERT INTO `users` (`foo`) VALUES (?), (?)", vec![10, 11]);
-        let query = Insert::multi_into("users", vec!["foo"])
+        let query = Insert::multi_into(User::table(), vec![User::foo])
             .values(vec![10])
             .values(vec![11]);
         let (sql, params) = Mysql::build(query).unwrap();
@@ -499,7 +514,7 @@ mod tests {
             "SELECT `users`.* FROM `users` LIMIT ? OFFSET ?",
             vec![10, 2],
         );
-        let query = Select::from_table("users").limit(10).offset(2);
+        let query = Select::from_table(User::table()).limit(10).offset(2);
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -513,7 +528,7 @@ mod tests {
             vec![9_223_372_036_854_775_807i64, 10],
         );
 
-        let query = Select::from_table("users").offset(10);
+        let query = Select::from_table(User::table()).offset(10);
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -523,20 +538,30 @@ mod tests {
     #[test]
     fn test_limit_and_offset_when_only_limit_is_set() {
         let expected = expected_values("SELECT `users`.* FROM `users` LIMIT ?", vec![10]);
-        let query = Select::from_table("users").limit(10);
+        let query = Select::from_table(User::table()).limit(10);
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test"]
+    struct TestEntity {
+        id1: i32,
+        id2: i32,
+        bar: String,
+    }
+
     #[test]
     fn test_in_values_2_tuple() {
-        use crate::{col, values};
+        use crate::values;
 
-        let expected_sql = "SELECT `test`.* FROM `test` WHERE (`id1`,`id2`) IN ((?,?),(?,?))";
-        let query = Select::from_table("test")
-            .so_that(Row::from((col!("id1"), col!("id2"))).in_selection(values!((1, 2), (3, 4))));
+        let expected_sql =
+            "SELECT `test`.* FROM `test` WHERE (`test`.`id1`,`test`.`id2`) IN ((?,?),(?,?))";
+        let query = Select::from_table(TestEntity::table()).so_that(
+            Row::from((TestEntity::id1, TestEntity::id2)).in_selection(values!((1, 2), (3, 4))),
+        );
 
         let (sql, params) = Mysql::build(query).unwrap();
 
@@ -552,32 +577,32 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn equality_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT `users`.* FROM `users` WHERE JSON_CONTAINS(`jsonField`, ?) AND JSON_CONTAINS(?, `jsonField`)"#,
+            r#"SELECT `users`.* FROM `users` WHERE JSON_CONTAINS(`users`.`jsonField`, ?) AND JSON_CONTAINS(?, `users`.`jsonField`)"#,
             vec![serde_json::json!({"a": "b"}), serde_json::json!({"a": "b"})],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("jsonField").equals(serde_json::json!({"a":"b"})));
+        let query = Select::from_table(User::table())
+            .so_that(User::json.equals(serde_json::json!({"a":"b"})));
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
 
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     #[test]
     fn difference_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT `users`.* FROM `users` WHERE NOT JSON_CONTAINS(`jsonField`, ?) OR NOT JSON_CONTAINS(?, `jsonField`)"#,
+            r#"SELECT `users`.* FROM `users` WHERE NOT JSON_CONTAINS(`users`.`jsonField`, ?) OR NOT JSON_CONTAINS(?, `users`.`jsonField`)"#,
             vec![serde_json::json!({"a": "b"}), serde_json::json!({"a": "b"})],
         );
 
-        let query = Select::from_table("users")
-            .so_that(Column::from("jsonField").not_equals(serde_json::json!({"a":"b"})));
+        let query = Select::from_table(User::table())
+            .so_that(User::json.not_equals(serde_json::json!({"a":"b"})));
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected.0, sql);
@@ -641,43 +666,60 @@ mod tests {
 
     #[test]
     fn test_distinct() {
-        let expected_sql = "SELECT DISTINCT `bar` FROM `test`";
-        let query = Select::from_table("test")
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT `test`.`bar` FROM `test`";
+        let query = Select::from_table(TestEntity::table())
+            .column(TestEntity::bar)
             .distinct();
         let (sql, _) = Mysql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
     }
 
+    #[derive(Entity)]
+    #[tablename = "test2"]
+    struct Test2Entity {}
+
     #[test]
     fn test_distinct_with_subquery() {
-        let expected_sql = "SELECT DISTINCT (SELECT ? FROM `test2`), `bar` FROM `test`";
-        let query = Select::from_table("test")
-            .value(Select::from_table("test2").value(val!(1)))
-            .column(Column::new("bar"))
+        let expected_sql = "SELECT DISTINCT (SELECT ? FROM `test2`), `test`.`bar` FROM `test`";
+        let query = Select::from_table(TestEntity::table())
+            .value(Select::from_table(Test2Entity::table()).value(val!(1)))
+            .column(TestEntity::bar)
             .distinct();
 
         let (sql, _) = Mysql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
+    }
+
+    #[derive(Entity)]
+    #[tablename = "foo"]
+    struct Foo {
+        foo: String,
+        baz: String,
+    }
+
+    #[derive(Entity)]
+    #[tablename = "baz"]
+    struct Baz {
+        a: String,
     }
 
     #[test]
     fn test_from() {
         let expected_sql = "SELECT `foo`.*, `bar`.`a` FROM `foo`, (SELECT `a` FROM `baz`) AS `bar`";
         let query = Select::default()
-            .and_from("foo")
-            .and_from(Table::from(Select::from_table("baz").column("a")).alias("bar"))
-            .value(Table::from("foo").asterisk())
-            .column(("bar", "a"));
+            .and_from(Foo::table())
+            .and_from(Table::from(Select::from_table(Baz::table()).column(Baz::a)).alias("bar"))
+            .value(Table::from(Foo::table()).asterisk())
+            .column(Baz::a); // ("bar", "a")
 
         let (sql, _) = Mysql::build(query).unwrap();
         assert_eq!(expected_sql, sql);
     }
 
     #[test]
-    #[cfg(feature = "json")]
+    #[cfg(feature = "json-type")]
     fn test_raw_json() {
         let (sql, params) =
             Mysql::build(Select::default().value(serde_json::json!({ "foo": "bar" }).raw()))
@@ -687,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "uuid")]
+    #[cfg(feature = "uuid-type")]
     fn test_raw_uuid() {
         let uuid = uuid::Uuid::new_v4();
         let (sql, params) = Mysql::build(Select::default().value(uuid.raw())).unwrap();
@@ -701,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono")]
+    #[cfg(feature = "chrono-type")]
     fn test_raw_datetime() {
         let dt = chrono::Utc::now();
         let (sql, params) = Mysql::build(Select::default().value(dt.raw())).unwrap();
@@ -712,27 +754,37 @@ mod tests {
 
     #[test]
     fn test_default_insert() {
-        let insert = Insert::single_into("foo")
-            .value("foo", "bar")
-            .value("baz", default_value());
+        let insert = Insert::single_into(Foo::table())
+            .value(Foo::foo, "bar")
+            .value(Foo::baz, default_value());
 
         let (sql, _) = Mysql::build(insert).unwrap();
 
-        assert_eq!("INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)", sql);
+        assert_eq!(
+            "INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)",
+            sql
+        );
     }
+
+    #[derive(Entity)]
+    #[tablename = "Post"]
+    struct Post {
+        user_id: i32,
+    }
+
+    #[derive(Entity)]
+    #[tablename = "Toto"]
+    struct Toto {}
 
     #[test]
     fn join_is_inserted_positionally() {
-        let joined_table = Table::from("User").left_join(
-            "Post"
-                .alias("p")
-                .on(("p", "userId").equals(Column::from(("User", "id")))),
-        );
-        let q = Select::from_table(joined_table).and_from("Toto");
+        let joined_table = Table::from(User::table())
+            .left_join(Post::table().alias("p").on(Post::user_id.equals(User::id)));
+        let q = Select::from_table(joined_table).and_from(Toto::table());
         let (sql, _) = Mysql::build(q).unwrap();
 
         assert_eq!(
-            "SELECT `User`.*, `Toto`.* FROM `User` LEFT JOIN `Post` AS `p` ON `p`.`userId` = `User`.`id`, `Toto`",
+            "SELECT `users`.*, `Toto`.* FROM `users` LEFT JOIN `Post` AS `p` ON `p`.`user_id` = `users`.`id`, `Toto`",
             sql
         );
     }

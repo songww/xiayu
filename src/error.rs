@@ -263,8 +263,8 @@ impl From<Error> for ErrorKind {
     }
 }
 
-#[cfg(feature = "bigdecimal")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+#[cfg(feature = "bigdecimal-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal-type")))]
 impl From<bigdecimal::ParseBigDecimalError> for Error {
     fn from(e: bigdecimal::ParseBigDecimalError) -> Self {
         let kind = ErrorKind::conversion(format!("{}", e));
@@ -272,8 +272,8 @@ impl From<bigdecimal::ParseBigDecimalError> for Error {
     }
 }
 
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg(feature = "json-type")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
 impl From<serde_json::Error> for Error {
     fn from(_: serde_json::Error) -> Self {
         Self::builder(ErrorKind::conversion("Malformed JSON data.")).build()

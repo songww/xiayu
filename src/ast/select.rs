@@ -97,12 +97,12 @@ impl<'a> Select<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_table<T>() -> Self
+    pub fn from_table<T>(table: T) -> Self
     where
-        T: crate::prelude::Entity,
+        T: Into<Table<'a>>,
     {
         Select {
-            tables: vec![T::table()],
+            tables: vec![table.into()],
             ..Default::default()
         }
     }
