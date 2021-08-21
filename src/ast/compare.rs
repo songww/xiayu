@@ -260,12 +260,16 @@ pub trait Comparable<'a> {
     /// Tests if both sides are the same value.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".equals("bar"));
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: String,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.equals("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
-    /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` = ?", sql);
+    /// assert_eq!("SELECT `users`.* FROM `users` WHERE `users`.`foo` = ?", sql);
     ///
     /// assert_eq!(
     ///     vec![
@@ -283,9 +287,13 @@ pub trait Comparable<'a> {
     /// Tests if both sides are not the same value.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".not_equals("bar"));
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: String,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.not_equals("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` <> ?", sql);
@@ -307,8 +315,12 @@ pub trait Comparable<'a> {
     ///
     /// ```rust
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
-    /// let query = Select::from_table("users").so_that("foo".less_than(10));
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.less_than(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` < ?", sql);
@@ -329,9 +341,13 @@ pub trait Comparable<'a> {
     /// Tests if the left side is smaller than the right side or the same.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".less_than_or_equals(10));
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.less_than_or_equals(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` <= ?", sql);
@@ -352,9 +368,13 @@ pub trait Comparable<'a> {
     /// Tests if the left side is bigger than the right side.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".greater_than(10));
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.greater_than(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` > ?", sql);
