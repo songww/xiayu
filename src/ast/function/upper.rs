@@ -10,8 +10,8 @@ pub struct Upper<'a> {
 /// Converts the result of the expression into uppercase string.
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let query = Select::from_table("users").value(upper(Column::from("name")));
 /// let (sql, _) = Sqlite::build(query)?;
 /// assert_eq!("SELECT UPPER(`name`) FROM `users`", sql);

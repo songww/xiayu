@@ -2,7 +2,7 @@
 ///
 /// ```rust
 /// # use xiayu::{col, values, ast::*, visitors::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # fn main() -> Result<(), xiayu::error::Error> {
 ///
 /// let condition = Row::from((col!("id"), col!("name")))
 ///     .in_selection(values!((1, "Musti"), (2, "Naukio")));
@@ -29,7 +29,7 @@ macro_rules! values {
 ///
 /// ``` rust
 /// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
 ///
 /// let query = Select::from_table("cats")
@@ -62,7 +62,7 @@ macro_rules! col {
 ///
 /// ``` rust
 /// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
 ///
 /// let query = Select::from_table("cats")

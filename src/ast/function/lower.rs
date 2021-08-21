@@ -10,8 +10,8 @@ pub struct Lower<'a> {
 /// Converts the result of the expression into lowercase string.
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let query = Select::from_table("users").value(lower(Column::from("name")));
 /// let (sql, _) = Sqlite::build(query)?;
 /// assert_eq!("SELECT LOWER(`name`) FROM `users`", sql);

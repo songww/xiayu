@@ -10,8 +10,8 @@ pub struct Coalesce<'a> {
 /// Returns the first non-null argument
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let exprs: Vec<Expression> = vec![
 ///   Column::from(("users", "company")).into(),
 ///   Value::text("Individual").into(),

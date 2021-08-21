@@ -46,8 +46,8 @@ impl<'a> JsonPath<'a> {
 ///
 /// For postgres:
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Postgres}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Postgres}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let extract: Expression = json_extract(Column::from(("users", "json")), JsonPath::array(["a", "b"]), false).into();
 /// let query = Select::from_table("users").so_that(extract.equals("c"));
 /// let (sql, params) = Postgres::build(query)?;
@@ -58,8 +58,8 @@ impl<'a> JsonPath<'a> {
 /// ```
 /// For MySQL:
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let extract: Expression = json_extract(Column::from(("users", "json")), JsonPath::string("$.a.b"), false).into();
 /// let query = Select::from_table("users").so_that(extract.equals("c"));
 /// let (sql, params) = Mysql::build(query)?;

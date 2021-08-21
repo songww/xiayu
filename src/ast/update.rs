@@ -32,8 +32,8 @@ impl<'a> Update<'a> {
     /// Add another column value assignment to the query
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Update::table("users").set("foo", 10).set("bar", false);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -64,8 +64,8 @@ impl<'a> Update<'a> {
     /// [Comparable](trait.Comparable.html#required-methods) for more examples.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Update::table("users").set("foo", 1).so_that("bar".equals(false));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -85,8 +85,8 @@ impl<'a> Update<'a> {
     /// We can also use a nested `SELECT` in the conditions.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let select = Select::from_table("bars").column("id").so_that("uniq_val".equals(3));
     /// let query = Update::table("users").set("foo", 1).so_that("bar".equals(select));
     /// let (sql, params) = Sqlite::build(query)?;

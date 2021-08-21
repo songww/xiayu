@@ -35,8 +35,8 @@ impl<'a> Select<'a> {
     /// Creates a new `SELECT` statement for the given table.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users");
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -48,8 +48,8 @@ impl<'a> Select<'a> {
     /// The table can be in multiple parts, defining the database.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table(("crm", "users"));
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -61,8 +61,8 @@ impl<'a> Select<'a> {
     /// Selecting from a nested `SELECT`.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let select = Table::from(Select::default().value(1)).alias("num");
     /// let query = Select::from_table(select.alias("num"));
     /// let (sql, params) = Sqlite::build(query)?;
@@ -76,9 +76,9 @@ impl<'a> Select<'a> {
     /// Selecting from a set of values.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # use quaint::values;
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::values;
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let expected_sql = "SELECT `vals`.* FROM (VALUES (?,?),(?,?)) AS `vals`";
     /// let values = Table::from(values!((1, 2), (3, 4))).alias("vals");
     /// let query = Select::from_table(values);
@@ -110,8 +110,8 @@ impl<'a> Select<'a> {
     /// Adds a table to be selected.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users")
     ///     .and_from(Table::from(Select::default().value(1)).alias("num"))
     ///     .column(("users", "name"))
@@ -134,8 +134,8 @@ impl<'a> Select<'a> {
     /// Selects a static value as the column.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::default().value(1);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -148,8 +148,8 @@ impl<'a> Select<'a> {
     /// Creating a qualified asterisk to a joined table:
     ///
     /// ```rust
-    /// # use quaint::{col, val, ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
     ///
     /// let query = Select::from_table("cats")
@@ -179,8 +179,8 @@ impl<'a> Select<'a> {
     /// Adds a column to be selected.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users")
     ///     .column("name")
     ///     .column(("users", "id"))
@@ -203,8 +203,8 @@ impl<'a> Select<'a> {
     /// A bulk method to select multiple values.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").columns(vec!["foo", "bar"]);
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -224,8 +224,8 @@ impl<'a> Select<'a> {
     /// Adds `DISTINCT` to the select query.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").column("foo").column("bar").distinct();
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -243,8 +243,8 @@ impl<'a> Select<'a> {
     /// examples.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".equals("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -269,8 +269,8 @@ impl<'a> Select<'a> {
     /// [Comparable](trait.Comparable.html#required-methods) for more examples.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users")
     ///     .so_that("foo".equals("bar"))
     ///     .and_where("lol".equals("wtf"));
@@ -304,8 +304,8 @@ impl<'a> Select<'a> {
     /// [Comparable](trait.Comparable.html#required-methods) for more examples.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users")
     ///     .so_that("foo".equals("bar"))
     ///     .or_where("lol".equals("wtf"));
@@ -337,8 +337,8 @@ impl<'a> Select<'a> {
     /// Adds `INNER JOIN` clause to the query.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "user_id").equals(Column::from(("users", "id"))));
     /// let query = Select::from_table("users").inner_join(join);
     /// let (sql, _) = Sqlite::build(query)?;
@@ -361,8 +361,8 @@ impl<'a> Select<'a> {
     /// Adds `LEFT JOIN` clause to the query.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let query = Select::from_table("users").left_join(join);
     /// let (sql, params) = Sqlite::build(query)?;
@@ -392,8 +392,8 @@ impl<'a> Select<'a> {
     /// Adds `RIGHT JOIN` clause to the query.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let query = Select::from_table("users").right_join(join);
     /// let (sql, params) = Sqlite::build(query)?;
@@ -423,8 +423,8 @@ impl<'a> Select<'a> {
     /// Adds `FULL JOIN` clause to the query.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let query = Select::from_table("users").full_join(join);
     /// let (sql, params) = Sqlite::build(query)?;
@@ -454,8 +454,8 @@ impl<'a> Select<'a> {
     /// Adds an ordering to the `ORDER BY` section.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users")
     ///     .order_by("foo")
     ///     .order_by("baz".ascend())
@@ -479,8 +479,8 @@ impl<'a> Select<'a> {
     /// This does not check if the grouping is actually valid in respect to aggregated columns.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").column("foo").column("bar")
     ///     .group_by("foo")
     ///     .group_by("bar");
@@ -502,8 +502,8 @@ impl<'a> Select<'a> {
     /// [group_by](struct.Select.html#method.group_by) statement.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").column("foo").column("bar")
     ///     .group_by("foo")
     ///     .having("foo".greater_than(100));
@@ -525,8 +525,8 @@ impl<'a> Select<'a> {
     /// Sets the `LIMIT` value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").limit(10);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -542,8 +542,8 @@ impl<'a> Select<'a> {
     /// Sets the `OFFSET` value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").offset(10);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -559,8 +559,8 @@ impl<'a> Select<'a> {
     /// Adds a common table expression to the select.
     ///
     /// ```rust
-    /// # use quaint::{val, ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{val, ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let cte = Select::default()
     ///     .value(val!(1).alias("val"))
     ///     .into_cte("one")

@@ -10,8 +10,8 @@ pub struct Minimum<'a> {
 /// Calculates the minimum value of a numeric column.
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let query = Select::from_table("users").value(min("age"));
 /// let (sql, _) = Sqlite::build(query)?;
 /// assert_eq!("SELECT MIN(`age`) FROM `users`", sql);

@@ -1,7 +1,7 @@
 //! Visitors for reading an abstract SQL syntax tree, generating the query and
 //! gathering parameters in the right order.
 //!
-//! The visitor module should not know how to construct an AST, just how to read
+//! The visitors module should not know how to construct an AST, just how to read
 //! one. Everything related to the tree generation is in the
 //! [ast](../ast/index.html) module.
 //!
