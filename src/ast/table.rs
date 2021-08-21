@@ -34,7 +34,7 @@ pub struct Table<'a> {
     pub typ: TableType<'a>,
     pub alias: Option<Cow<'a, str>>,
     pub database: Option<Cow<'a, str>>,
-    pub(crate) index_definitions: Vec<IndexDefinition<'a>>,
+    pub index_definitions: Vec<IndexDefinition<'a>>,
 }
 
 impl<'a> PartialEq for Table<'a> {

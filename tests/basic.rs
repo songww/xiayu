@@ -1,4 +1,3 @@
-/*
 #[macro_use]
 extern crate xiayu_derive;
 
@@ -54,4 +53,3 @@ fn entity_definitions() {
     assert_eq!(<AnEntity as Entity>::tablename(), "entities");
     assert_eq!(entity.tablename(), "entities");
 }
-*/

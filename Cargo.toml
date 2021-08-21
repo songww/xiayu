@@ -17,7 +17,7 @@ features = ["docs", "all"]
 name = "xiayu"
 
 [dependencies]
-xiayu-derive = { version = "0.1.0", path = "./derive" }
+xiayu-derive = { version = "0.1.0-alpha0", path = "./derive" }
 
 thiserror = "1.0"
 tracing = "0.1"

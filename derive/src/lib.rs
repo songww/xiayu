@@ -168,17 +168,15 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
     let mut tokens = TokenStream2::new();
 
     let found_crate =
-        proc_macro_crate::crate_name("xiayu").expect("xiayu is present in `Cargo.toml`");
+        proc_macro_crate::crate_name("xiayu").expect("xiayu is not present in `Cargo.toml`");
 
     let namespace = match found_crate {
-        proc_macro_crate::FoundCrate::Itself => quote!(crate::prelude),
+        proc_macro_crate::FoundCrate::Itself => quote!(self),
         proc_macro_crate::FoundCrate::Name(name) => {
-            let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
-            quote!( #ident::prelude )
+            let import = format_ident!("{}", &name);
+            quote!( #import::prelude )
         }
     };
-
-    // println!("-----------------> namespace: {}", namespace.to_string());
 
     if let darling::ast::Data::Struct(darling::ast::Fields { fields, .. }) = entity_def.data {
         for field in fields.into_iter() {
@@ -260,7 +258,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn table() -> #namespace::Table<'static> {
-                #ident::_table.clone()
+                #ident::_table
             }
         }
 
