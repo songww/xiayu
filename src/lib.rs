@@ -16,6 +16,7 @@ mod macros;
 #[macro_use]
 pub mod visitors;
 pub mod ast;
+pub mod databases;
 pub mod error;
 /*
 #[cfg(feature = "serde")]
@@ -33,6 +34,8 @@ pub mod prelude {
     use sqlx::Executor;
     pub use xiayu_derive::Entity;
 
+    pub use crate::databases::Executable;
+
     pub use super::ast::*;
     pub use super::Result;
 
@@ -47,19 +50,17 @@ pub mod prelude {
         fn table() -> Table<'static>;
 
         /*
-        fn select<'a, T, C>(columns: T) -> Select<'a>
+        fn select<'a, E>() -> Select<'a>
         where
-            T: IntoIterator<Item = C>,
-            C: Into<Column<'a>>,
+            E: Entity,
         {
-            Select::from_table(Self::table()).columns(columns)
+            Select::from_table(Self::table()).columns(E::columns())
         }
 
         fn save<'c, DB: Executor<'c>>(
             &mut self,
             db: &DB,
-        ) -> Box<dyn Future<Output = Result<()>>> where Self: HasPrimaryKey {
-            // if pk!(self)
+        ) -> Box<dyn Future<Output = Result<()>>> {
             let mut inserting = Insert::single_into(Self::table());
             for (col, val) in self.colvals() {
                 inserting = inserting.value(col, val);
@@ -69,7 +70,6 @@ pub mod prelude {
                 Ok(())
             })
         }
-        fn delete(&mut self, db: &DB) -> Box<dyn Future<Output = Result<()>>>
         */
     }
 
@@ -87,8 +87,15 @@ pub mod prelude {
 
     pub trait HasPrimaryKey: Entity {
         type PrimaryKey;
+        type PrimaryKeyValueType;
         fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
-        // fn get(pk: Self::PrimaryKey, db: &DB) -> Box<dyn Future<Output = Result<()>>>;
+        fn pk(&self) -> <Self as HasPrimaryKey>::PrimaryKeyValueType;
+        fn get(pk: Self::PrimaryKeyValueType) -> Executable<Self>
+        where
+            Self: Sized;
+        fn delete(&mut self) -> Executable<()>
+        where
+            Self: Sized;
     }
 
     #[derive(Clone)]

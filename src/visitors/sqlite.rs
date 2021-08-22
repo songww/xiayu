@@ -16,6 +16,15 @@ pub struct Sqlite<'a> {
     parameters: Vec<Value<'a>>,
 }
 
+impl<'a> Default for Sqlite<'a> {
+    fn default() -> Self {
+        Sqlite {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Sqlite<'a> {
     const C_BACKTICK_OPEN: &'static str = "`";
     const C_BACKTICK_CLOSE: &'static str = "`";

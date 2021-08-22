@@ -176,6 +176,16 @@ impl<'a> Mssql<'a> {
     }
 }
 
+impl<'a> Default for Mssql<'a> {
+    fn default() -> Self {
+        Mssql {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+            order_by_set: false,
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Mssql<'a> {
     const C_BACKTICK_OPEN: &'static str = "[";
     const C_BACKTICK_CLOSE: &'static str = "]";

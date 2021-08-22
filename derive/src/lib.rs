@@ -161,6 +161,8 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 
     let mut primary_key_type = None;
     let mut primary_key_column = None;
+    let mut primary_key_value_type = None;
+    let mut primary_key_column_name = None;
     let mut names = Vec::new();
     let mut types = Vec::new();
     let mut column_options = Vec::new();
@@ -215,8 +217,10 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
             };
             if is_primary_key {
                 primary_key_type = Some(quote! { #namespace::ColumnOptions<#ty> });
+                primary_key_value_type = Some(quote! { #ty });
                 // println!("primary_key_definition: {:?}", column.clone().to_string());
                 primary_key_column = Some(column.clone());
+                primary_key_column_name = Some(format_ident!("{}", name.clone()));
             }
             names.push(format_ident!("{}", name));
             column_options.push(column);
@@ -273,13 +277,29 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
 
             impl #namespace::HasPrimaryKey for #ident {
                 type PrimaryKey = #primary_key_type;
+                type PrimaryKeyValueType = #primary_key_value_type;
                 #[inline]
                 fn primary_key() -> <Self as #namespace::HasPrimaryKey>::PrimaryKey {
                     #ident::_primary_key
                 }
+
+                #[inline]
+                fn pk(&self) -> <Self as HasPrimaryKey>::PrimaryKeyValueType {
+                    self.#primary_key_column_name
+                }
+
+                #[inline]
+                fn get(pk: Self::PrimaryKeyValueType) -> #namespace::Executable<Self> {
+                    (#namespace::Select::from_table(Self::table())
+                        .so_that(Self::primary_key().equals(pk)), false)
+                        .into()
+                }
+                #[inline]
+                fn delete(&mut self) -> #namespace::Executable<()> {
+                    (#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), false).into()
+                }
             }
         };
-        // println!("token ------- pk definition -------> {}", token.to_string());
         tokens.extend(token);
     };
     tokens.into()

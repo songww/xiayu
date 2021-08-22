@@ -41,6 +41,15 @@ impl<'a> Mysql<'a> {
     }
 }
 
+impl<'a> Default for Mysql<'a> {
+    fn default() -> Self {
+        Mysql {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Mysql<'a> {
     const C_BACKTICK_OPEN: &'static str = "`";
     const C_BACKTICK_CLOSE: &'static str = "`";
@@ -760,10 +769,7 @@ mod tests {
 
         let (sql, _) = Mysql::build(insert).unwrap();
 
-        assert_eq!(
-            "INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)",
-            sql
-        );
+        assert_eq!("INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)", sql);
     }
 
     #[derive(Entity)]

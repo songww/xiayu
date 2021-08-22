@@ -1,5 +1,6 @@
-use crate::ast::*;
-use crate::error::{Error, ErrorKind};
+use std::borrow::{Borrow, Cow};
+use std::convert::TryFrom;
+use std::fmt;
 
 #[cfg(feature = "bigdecimal-type")]
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
@@ -7,13 +8,11 @@ use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 #[cfg(feature = "json-type")]
 use serde_json::{Number, Value as JsonValue};
-use std::{
-    borrow::{Borrow, Cow},
-    convert::TryFrom,
-    fmt,
-};
 #[cfg(feature = "uuid-type")]
-use uuid::Uuid;
+use sqlx::types::Uuid;
+
+use crate::ast::*;
+use crate::error::{Error, ErrorKind};
 
 /// A value written to the query as-is without parameterization.
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +55,8 @@ pub enum Value<'a> {
     Boolean(Option<bool>),
     /// A single character.
     Char(Option<char>),
+    #[cfg(feature = "postgres")]
+    #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
     /// An array value (PostgreSQL).
     Array(Option<Vec<Value<'a>>>),
     /// A numeric value.

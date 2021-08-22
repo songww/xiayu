@@ -1,8 +1,7 @@
-use crate::{
-    ast::*,
-    visitors::{self, Visitor},
-};
 use std::fmt::{self, Write};
+
+use crate::ast::*;
+use crate::visitors::{self, Visitor};
 
 /// A visitor to generate queries for the postgres database.
 ///
@@ -12,6 +11,15 @@ use std::fmt::{self, Write};
 pub struct Postgres<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
+}
+
+impl<'a> Default for Postgres<'a> {
+    fn default() -> Self {
+        Postgres {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+        }
+    }
 }
 
 impl<'a> Visitor<'a> for Postgres<'a> {
