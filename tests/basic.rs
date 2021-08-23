@@ -1,10 +1,6 @@
-#[macro_use]
-extern crate xiayu_derive;
-
 use std::marker::PhantomData;
 
 use xiayu::prelude::*;
-//use xiayu_derive::*;
 
 #[derive(Debug)]
 pub struct Relation<T> {
@@ -52,4 +48,38 @@ fn entity_definitions() {
     assert_eq!(entity.id, 2);
     assert_eq!(<AnEntity as Entity>::tablename(), "entities");
     assert_eq!(entity.tablename(), "entities");
+
+    if cfg!(feature = "sqlite") {
+        use sqlx::Connection;
+        use sqlx::Executor;
+        async fn run() -> Result<()> {
+            let mut conn = sqlx::SqliteConnection::connect("sqlite::memory:").await?;
+            conn.execute("
+                CREATE TABLE IF NOT EXISTS another_entities (
+	                id INTEGER PRIMARY KEY
+                );").await?;
+            conn.execute("INSERT INTO another_entities (id) VALUES (1), (2);").await?;
+            let mut entity = AnotherEntity::get(1).conn(&mut conn).await?;
+            assert_eq!(entity.id, 1);
+            entity.delete().conn(&mut conn).await?;
+            match AnotherEntity::get(1).conn(&mut conn).await {
+                Err(err) =>  {
+                    match err.kind() {
+                        xiayu::error::ErrorKind::NotFound(_) => {}
+                        _ => return Err(err)
+                    }
+                }
+                Ok(_) => panic!("Delete failed.")
+            }
+            let entity = AnotherEntity::get(2).conn(&mut conn).await?;
+            assert_eq!(entity.id, 2);
+            Ok(())
+        }
+        let res = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(run());
+        assert!(res.is_ok(), "{:?}", res)
+    }
 }

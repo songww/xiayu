@@ -98,21 +98,6 @@ struct ColumnOptions {
     attrs: Vec<syn::Attribute>,
 }
 
-/*
-macro_rules! quote_optional2 {
-    ($expr:expr) => {
-        match $expr {
-            Some(value) => {
-                quote! { #value }
-            }
-            None => {
-                quote! { () }
-            }
-        }
-    };
-}
-*/
-
 macro_rules! quote_optional {
     ($expr:expr) => {
         match $expr {
@@ -125,9 +110,6 @@ macro_rules! quote_optional {
         }
     };
 }
-
-//uses_type_params!(EntityDefinition, ty);
-//uses_type_params!(ColumnOptions, ty);
 
 #[proc_macro_derive(Entity, attributes(tablename, column))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {
@@ -180,11 +162,43 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
         }
     };
 
+    let generics = &entity_def.generics;
+
+    let (lifetime, provided) = generics
+        .lifetimes()
+        .next()
+        .map(|def| (def.lifetime.clone(), false))
+        .unwrap_or_else(|| {
+            (
+                syn::Lifetime::new("'a", proc_macro2::Span::call_site()),
+                true,
+            )
+        });
+
+    let (_, ty_generics, _) = generics.split_for_impl();
+
+    let mut generics = generics.clone();
+    generics.params.insert(0, syn::parse_quote!(R: ::sqlx::Row));
+
+    if provided {
+        generics.params.insert(0, syn::parse_quote!(#lifetime));
+    }
+
+    let where_clause = generics.make_where_clause();
+    let predicates = &mut where_clause.predicates;
+
+    predicates.push(syn::parse_quote!(&#lifetime ::std::primitive::str: ::sqlx::ColumnIndex<R>));
+
+    let mut reads: Vec<syn::Stmt> = Vec::new();
     if let darling::ast::Data::Struct(darling::ast::Fields { fields, .. }) = entity_def.data {
         for field in fields.into_iter() {
             let ty = field.ty;
             types.push(ty.clone());
-            let name = field.ident.map(|i| i.to_string()).unwrap();
+            let name = field
+                .ident
+                .as_ref()
+                .map(|i| i.to_string().trim_start_matches("r#").to_owned())
+                .unwrap();
             let column_name = field.name.unwrap_or(name.to_string());
             let is_primary_key = field.primary_key.is_some();
             let autoincrement = field.autoincrement.is_some();
@@ -193,7 +207,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
             let unique = field.unique;
             let length = quote_optional!(field.length);
             let quote_name = field.quote;
-            let default = quote_optional!(field.default);
+            let default = quote_optional!(field.default.clone());
             let onupdate = quote_optional!(field.onupdate);
             let server_default = quote_optional!(field.server_default);
             let server_onupdate = quote_optional!(field.server_onupdate);
@@ -224,12 +238,27 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
             }
             names.push(format_ident!("{}", name));
             column_options.push(column);
+
+            predicates.push(syn::parse_quote!(#ty: ::sqlx::decode::Decode<#lifetime, R::Database>));
+            predicates.push(syn::parse_quote!(#ty: ::sqlx::types::Type<R::Database>));
+
+            let id = field.ident.as_ref();
+            if field.default.is_some() {
+                reads.push(
+                    syn::parse_quote!(let #id: #ty = row.try_get(#column_name).or_else(|e| match e {
+                    ::sqlx::Error::ColumnNotFound(_) => {
+                        ::std::result::Result::Ok(#default)
+                    },
+                    e => ::std::result::Result::Err(e)
+                })?;),
+                );
+            } else {
+                reads.push(syn::parse_quote!(let #id: #ty = row.try_get(#column_name)?;));
+            }
         }
     } else {
         unreachable!()
     }
-
-    // let stringified_names = names.iter().map(|name| name.to_string());
 
     let table_def = quote! {
         #namespace::Table {
@@ -240,6 +269,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
         }
     };
 
+    // let orig_generics = &entity_def.generics;
     tokens.extend(quote! {
         impl #ident {
             const _table: #namespace::Table<'static> = #table_def;
@@ -289,18 +319,43 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
                 }
 
                 #[inline]
-                fn get(pk: Self::PrimaryKeyValueType) -> #namespace::Executable<Self> {
-                    (#namespace::Select::from_table(Self::table())
-                        .so_that(Self::primary_key().equals(pk)), false)
+                fn get<DB: ::sqlx::Database>(pk: Self::PrimaryKeyValueType) -> #namespace::FetchRequest<Self, DB>
+                    where
+                        Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row>,
+                {
+                    #namespace::Select::from_table(Self::table())
+                        .so_that(Self::primary_key().equals(pk))
                         .into()
                 }
+
                 #[inline]
-                fn delete(&mut self) -> #namespace::Executable<()> {
-                    (#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), false).into()
+                fn delete<'e, DB>(&'e mut self) -> #namespace::DeleteRequest<'e, Self, DB>
+                    where
+                        DB: ::sqlx::Database
+                {
+                    #namespace::DeleteRequest::new(#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), self)
                 }
             }
         };
         tokens.extend(token);
     };
+
+    let (impl_generics, _, where_clause) = generics.split_for_impl();
+
+    let token = quote! {
+        #[automatically_derived]
+        impl #impl_generics ::sqlx::FromRow<#lifetime, R> for #ident #ty_generics #where_clause {
+            fn from_row(row: &#lifetime R) -> ::sqlx::Result<Self> {
+                #(#reads)*
+
+                ::std::result::Result::Ok(#ident {
+                    #(#names),*
+                })
+            }
+        }
+    };
+
+    tokens.extend(token);
+
     tokens.into()
 }

@@ -50,9 +50,11 @@ fn main() {
     assert_eq!(<AnEntity as Entity>::tablename(), "entities");
     assert_eq!(entity.tablename(), "entities");
 
+    #[cfg(feature = "postgres")]
     assert_eq!(
         xiayu::visitors::Postgres::build(
-            Select::from_table(<AnEntity as Entity>::table()).so_that(AnEntity::another_entity_id.equals(1)),
+            Select::from_table(<AnEntity as Entity>::table())
+                .so_that(AnEntity::another_entity_id.equals(1)),
         )
         .unwrap(),
         ("".to_string(), Vec::new())

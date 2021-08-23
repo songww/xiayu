@@ -138,7 +138,77 @@ impl fmt::Display for Error {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ErrorKind {
+    /// Error occurred while parsing a connection string.
+    #[error("{0}")]
+    SQLxConfiguration(#[source] sqlx::error::Error),
+
+    /// Error returned from the database.
+    #[error("{0}")]
+    SQLxDatabase(#[source] sqlx::error::Error),
+
+    /// Error communicating with the database backend./// Error communicating with the database backend.
+    #[error("{0}")]
+    SQLxIo(#[source] sqlx::error::Error),
+
+    /// Error occurred while attempting to establish a TLS connection.
+    #[error("{0}")]
+    SQLxTls(#[source] sqlx::error::Error),
+
+    /// Unexpected or invalid data encountered while communicating with the database.
+    ///
+    /// This should indicate there is a programming error in a SQLx driver or there
+    /// is something corrupted with the connection to the database itself.
+    #[error("{0}")]
+    SQLxProtocol(#[source] sqlx::error::Error),
+
+    /// No rows returned by a query that expected to return at least one row.
+    #[error("{0}")]
+    NotFound(#[source] sqlx::error::Error),
+
+    /// Type in query doesn't exist. Likely due to typo or missing user type.
+    #[error("{0}")]
+    SQLxTypeNotFound(#[source] sqlx::error::Error),
+
+    /// Column index was out of bounds.
+    #[error("{0}")]
+    SQLxColumnIndexOutOfBounds(#[source] sqlx::error::Error),
+
+    /// No column found for the given name.
+    #[error("{0}")]
+    SQLxColumnNotFound(#[source] sqlx::error::Error),
+
+    /// Error occurred while decoding a value from a specific column.
+    #[error("{0}")]
+    SQLxColumnDecode(#[source] sqlx::error::Error),
+
+    /// Error occurred while decoding a value.
+    #[error("{0}")]
+    SQLxDecode(#[source] sqlx::error::Error),
+
+    /// A [`Pool::acquire`] timed out due to connections not becoming available or
+    /// because another task encountered too many errors while trying to open a new connection.
+    ///
+    /// [`Pool::acquire`]: crate::pool::Pool::acquire
+    #[error("{0}")]
+    SQLxPoolTimedOut(#[source] sqlx::error::Error),
+
+    /// [`Pool::close`] was called while we were waiting in [`Pool::acquire`].
+    ///
+    /// [`Pool::acquire`]: crate::pool::Pool::acquire
+    /// [`Pool::close`]: crate::pool::Pool::close
+    #[error("{0}")]
+    SQLxPoolClosed(#[source] sqlx::error::Error),
+
+    /// A background worker has crashed.
+    #[error("{0}")]
+    SQLxWorkerCrashed(#[source] sqlx::error::Error),
+
+    /// Other SQLx error not handled yet.
+    #[error("{0}")]
+    OtherSQLxError(#[source] sqlx::error::Error),
+
     #[error("Error querying the database: {}", _0)]
     QueryError(Box<dyn std::error::Error + Send + Sync + 'static>),
 
@@ -153,9 +223,6 @@ pub enum ErrorKind {
 
     #[error("Authentication failed for user {}", user)]
     AuthenticationFailed { user: Name },
-
-    #[error("Query returned no data")]
-    NotFound,
 
     #[error("No such table: {}", table)]
     TableDoesNotExist { table: Name },
@@ -178,9 +245,8 @@ pub enum ErrorKind {
     #[error("Error accessing result set, index out of bounds: {}", _0)]
     ResultIndexOutOfBounds(usize),
 
-    #[error("Error accessing result set, column not found: {}", column)]
-    ColumnNotFound { column: Name },
-
+    // #[error("Error accessing result set, column not found: {}", column)]
+    // ColumnNotFound { column: Name },
     #[error("Error accessing result set, type mismatch, expected: {}", _0)]
     ResultTypeMismatch(&'static str),
 
@@ -286,6 +352,31 @@ impl From<std::fmt::Error> for Error {
             "Problems writing AST into a query string.",
         ))
         .build()
+    }
+}
+
+impl From<sqlx::error::Error> for Error {
+    fn from(err: sqlx::error::Error) -> Self {
+        let kind = match err {
+            sqlx::error::Error::Configuration(_) => ErrorKind::SQLxConfiguration(err),
+            sqlx::error::Error::Database(_) => ErrorKind::SQLxDatabase(err),
+            sqlx::error::Error::Io(_) => ErrorKind::SQLxIo(err),
+            sqlx::error::Error::Tls(_) => ErrorKind::SQLxTls(err),
+            sqlx::error::Error::Protocol(_) => ErrorKind::SQLxProtocol(err),
+            sqlx::error::Error::RowNotFound => ErrorKind::NotFound(err),
+            sqlx::error::Error::TypeNotFound { .. } => ErrorKind::SQLxTypeNotFound(err),
+            sqlx::error::Error::ColumnIndexOutOfBounds { .. } => {
+                ErrorKind::SQLxColumnIndexOutOfBounds(err)
+            }
+            sqlx::error::Error::ColumnNotFound(_) => ErrorKind::SQLxColumnNotFound(err),
+            sqlx::error::Error::ColumnDecode { .. } => ErrorKind::SQLxColumnDecode(err),
+            sqlx::error::Error::Decode(_) => ErrorKind::SQLxDecode(err),
+            sqlx::error::Error::PoolTimedOut => ErrorKind::SQLxPoolTimedOut(err),
+            sqlx::error::Error::PoolClosed => ErrorKind::SQLxPoolClosed(err),
+            sqlx::error::Error::WorkerCrashed => ErrorKind::SQLxWorkerCrashed(err),
+            _ => ErrorKind::OtherSQLxError(err),
+        };
+        Self::builder(kind).build()
     }
 }
 

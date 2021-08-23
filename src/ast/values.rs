@@ -55,7 +55,6 @@ pub enum Value<'a> {
     Boolean(Option<bool>),
     /// A single character.
     Char(Option<char>),
-    #[cfg(feature = "postgres")]
     #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
     /// An array value (PostgreSQL).
     Array(Option<Vec<Value<'a>>>),

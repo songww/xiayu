@@ -34,13 +34,20 @@ pub mod prelude {
     use sqlx::Executor;
     pub use xiayu_derive::Entity;
 
-    pub use crate::databases::Executable;
+    pub use crate::databases::DeleteRequest;
+    pub use crate::databases::FetchRequest;
 
     pub use super::ast::*;
     pub use super::Result;
 
     #[derive(Clone, Debug)]
     pub struct DefaultValue<T>(fn() -> T);
+
+    impl<T> DefaultValue<T> {
+        fn get(&self) -> T {
+            (self.0)()
+        }
+    }
 
     /// select().where(Entity::last_modified == now())
     pub trait Entity {
@@ -90,10 +97,10 @@ pub mod prelude {
         type PrimaryKeyValueType;
         fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
         fn pk(&self) -> <Self as HasPrimaryKey>::PrimaryKeyValueType;
-        fn get(pk: Self::PrimaryKeyValueType) -> Executable<Self>
+        fn get<DB: sqlx::Database>(pk: Self::PrimaryKeyValueType) -> FetchRequest<Self, DB>
         where
-            Self: Sized;
-        fn delete(&mut self) -> Executable<()>
+            Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row> + Sized;
+        fn delete<'e, DB: sqlx::Database>(&'e mut self) -> DeleteRequest<'e, Self, DB>
         where
             Self: Sized;
     }
@@ -178,6 +185,8 @@ pub mod prelude {
         pub fn t(&self) -> Table<'static> {
             self.table()
         }
+
+        // pub create_table() -> CreateTable;
     }
 
     impl<'a, T> From<ColumnOptions<T>> for Column<'a> {
