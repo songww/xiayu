@@ -34,8 +34,7 @@ pub mod prelude {
     use sqlx::Executor;
     pub use xiayu_derive::Entity;
 
-    pub use crate::databases::DeleteRequest;
-    pub use crate::databases::FetchRequest;
+    pub use crate::databases::{DeleteRequest, FetchRequest, SaveRequest};
 
     pub use super::ast::*;
     pub use super::Result;
@@ -63,20 +62,6 @@ pub mod prelude {
         {
             Select::from_table(Self::table()).columns(E::columns())
         }
-
-        fn save<'c, DB: Executor<'c>>(
-            &mut self,
-            db: &DB,
-        ) -> Box<dyn Future<Output = Result<()>>> {
-            let mut inserting = Insert::single_into(Self::table());
-            for (col, val) in self.colvals() {
-                inserting = inserting.value(col, val);
-            }
-            Box::new(async {
-                let rows_affected = db.execute(inserting).await?.rows_affected();
-                Ok(())
-            })
-        }
         */
     }
 
@@ -101,6 +86,9 @@ pub mod prelude {
         where
             Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row> + Sized;
         fn delete<'e, DB: sqlx::Database>(&'e mut self) -> DeleteRequest<'e, Self, DB>
+        where
+            Self: Sized;
+        fn save<'e, DB: sqlx::Database>(&'e mut self) -> SaveRequest<'e, Self, DB>
         where
             Self: Sized;
     }

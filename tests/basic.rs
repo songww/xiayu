@@ -1,26 +1,11 @@
-use std::marker::PhantomData;
-
 use xiayu::prelude::*;
-
-#[derive(Debug)]
-pub struct Relation<T> {
-    _phantom: PhantomData<T>,
-}
-
-impl<T> Relation<T> {
-    fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-}
 
 #[derive(Debug, Entity)]
 #[tablename = "entities"]
 pub struct AnEntity {
     #[column(primary_key, autoincrement, comment = "some comments")]
     pub id: i32,
-    pub another_entity_id: Relation<AnotherEntity>,
+    // pub another_entity_id: Relation<AnotherEntity>,
     pub maybe_float: Option<f32>,
 }
 
@@ -28,11 +13,12 @@ pub struct AnEntity {
 pub struct AnotherEntity {
     #[column(primary_key)]
     pub id: i32,
+    textual: String,
 }
 
 #[test]
 fn another_entity_definitions() {
-    let entity = AnotherEntity { id: 1 };
+    let entity = AnotherEntity { id: 1, textual: "string.".to_string() };
     assert_eq!(entity.id, 1);
     assert_eq!(<AnotherEntity as Entity>::tablename(), "another_entities");
     assert_eq!(entity.tablename(), "another_entities");
@@ -42,7 +28,7 @@ fn another_entity_definitions() {
 fn entity_definitions() {
     let entity = AnEntity {
         id: 2,
-        another_entity_id: Relation::<AnotherEntity>::new(),
+        // another_entity_id: Relation::<AnotherEntity>::new(),
         maybe_float: None,
     };
     assert_eq!(entity.id, 2);
@@ -56,9 +42,10 @@ fn entity_definitions() {
             let mut conn = sqlx::SqliteConnection::connect("sqlite::memory:").await?;
             conn.execute("
                 CREATE TABLE IF NOT EXISTS another_entities (
-	                id INTEGER PRIMARY KEY
+	                id INTEGER PRIMARY KEY,
+	                textual TEXT
                 );").await?;
-            conn.execute("INSERT INTO another_entities (id) VALUES (1), (2);").await?;
+            conn.execute("INSERT INTO another_entities (textual) VALUES ('abc'), ('xyz');").await?;
             let mut entity = AnotherEntity::get(1).conn(&mut conn).await?;
             assert_eq!(entity.id, 1);
             entity.delete().conn(&mut conn).await?;
@@ -71,8 +58,14 @@ fn entity_definitions() {
                 }
                 Ok(_) => panic!("Delete failed.")
             }
+            let mut entity = AnotherEntity::get(2).conn(&mut conn).await?;
+            entity.textual = "123".to_string();
+            println!("--------> saving.");
+            entity.save().conn(&mut conn).await?;
+            println!("--------> saved.");
             let entity = AnotherEntity::get(2).conn(&mut conn).await?;
-            assert_eq!(entity.id, 2);
+            println!("--------> fetch.");
+            assert_eq!(entity.textual, "123".to_string());
             Ok(())
         }
         let res = tokio::runtime::Builder::new_current_thread()

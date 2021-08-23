@@ -335,6 +335,19 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
                 {
                     #namespace::DeleteRequest::new(#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), self)
                 }
+
+                #[inline]
+                fn save<'e, DB>(&'e mut self) -> #namespace::SaveRequest<'e, Self, DB>
+                    where
+                        DB: ::sqlx::Database
+                {
+                    #namespace::SaveRequest::new(
+                        #namespace::Update::table(Self::table())
+                            #(.set(#ident::#names, self.#names.clone()))*
+                            .so_that(Self::primary_key().equals(self.pk())),
+                        self
+                    )
+                }
             }
         };
         tokens.extend(token);

@@ -4,7 +4,7 @@ use sqlx::types::chrono;
 use sqlx::{Arguments, Database, IntoArguments, FromRow};
 
 use crate::ast::Value;
-use crate::prelude::{Delete, Entity, HasPrimaryKey, Select};
+use crate::prelude::{Delete, Entity, HasPrimaryKey, Select, Update};
 use crate::visitors::Visitor;
 
 pub trait HasVisitor<'a> {
@@ -104,7 +104,7 @@ macro_rules! impl_into_arguments_for {
                                 Vec<serde_json::Value>
                             ),
                             #[cfg(feature = "sqlite")]
-                            Value::Array(array) => unimplemented!("Arrays are not supported in SQLite."),
+                            Value::Array(_) => unimplemented!("Arrays are not supported in SQLite."),
                             #[cfg(feature = "bigdecimal-type")]
                             Value::Numeric(numeric) => args_add!(numeric, bigdecimal::BigDecimal),
                             #[cfg(feature = "json-type")]
@@ -227,6 +227,48 @@ impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
         Ok(())
     }
 }
+
+/// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
+#[must_use = "save must be executed to affect database"]
+pub struct SaveRequest<'a, E, DB> {
+    saving: Update<'static>,
+    compiled: Option<String>,
+    entity: &'a mut E,
+    _marker: PhantomData<DB>,
+}
+
+impl<'e, E: HasPrimaryKey, DB: Database> SaveRequest<'e, E, DB> {
+    pub fn new<'a>(saving: Update<'static>, entity: &'e mut E) -> Self
+    {
+        Self {
+            entity,
+            saving,
+            compiled: None,
+            _marker: PhantomData,
+        }
+    }
+
+    pub async fn conn<'a, C>(&'a mut self, conn: C) -> Result<(), crate::error::Error>
+    where
+        'e: 'a,
+        C: 'a + sqlx::Executor<'a, Database = DB>,
+        DB: 'a + sqlx::Database + HasVisitor<'a>,
+        <DB as sqlx::database::HasArguments<'a>>::Arguments: 'a + IntoArguments<'a, DB>,
+        Values<'a>: IntoArguments<'a, DB>
+    {
+        let (compiled, parameters) =
+            <<C as sqlx::Executor<'a>>::Database as HasVisitor>::Visitor::build(self.saving.clone())?;
+        // 'a for borrowed from self.compiled
+        println!("compiled update: {}", &compiled);
+        self.compiled.replace(compiled);
+        let arguments = IntoArguments::<'a, DB>::into_arguments(Values(parameters));
+        let _query_result = sqlx::query_with::<DB, _>(self.compiled.as_ref().unwrap(), arguments)
+            .execute(conn)
+            .await?;
+        Ok(())
+    }
+}
+
 
 /// create table. Returned by [`get`][crate::prelude::entity::create_table].
 #[must_use = "delete must be executed to affect database"]
