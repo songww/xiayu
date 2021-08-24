@@ -1,5 +1,6 @@
-use std::marker::{PhantomData, PhantomPinned};
+use std::marker::{PhantomData};
 
+#[cfg(feature = "chrono-type")]
 use sqlx::types::chrono;
 use sqlx::{Arguments, Database, IntoArguments, FromRow};
 

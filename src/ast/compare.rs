@@ -55,6 +55,12 @@ pub enum Compare<'a> {
     #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     // All json related comparators
     JsonCompare(JsonCompare<'a>),
+    /// `left` @@ to_tsquery(`value`)
+    #[cfg(feature = "postgresql")]
+    Matches(Box<Expression<'a>>, Cow<'a, str>),
+    /// (NOT `left` @@ to_tsquery(`value`))
+    #[cfg(feature = "postgresql")]
+    NotMatches(Box<Expression<'a>>, Cow<'a, str>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -811,10 +817,66 @@ pub trait Comparable<'a> {
     where
         T: Into<JsonType>;
 
+    /// Tests if a full-text search matches a certain query. Use it in combination with the `text_search()` function
+    ///
+    /// ```rust
+    /// # use xiaye::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct Recipe {
+    ///   name: String,
+    ///   ingredients: String,
+    /// }
+    /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
+    /// let query = Select::from_table(Recipe::table()).so_that(search.matches("chicken"));
+    /// let (sql, params) = Postgres::build(query)?;
+    ///
+    /// assert_eq!(
+    ///    "SELECT \"recipes\".* FROM \"recipes\" \
+    ///     WHERE to_tsvector(\"recipes\".\"name\"|| ' ' ||\"recipes\".\"ingredients\") @@ to_tsquery($1)", sql
+    /// );
+    ///
+    /// assert_eq!(params, vec![Value::from("chicken")]);
+    /// # Ok(())    
+    /// # }
+    /// ```
+    #[cfg(feature = "postgresql")]
+    fn matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>;
+
+    /// Tests if a full-text search does not match a certain query. Use it in combination with the `text_search()` function
+    ///
+    /// ```rust
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct Recipe {
+    ///   name: String,
+    ///   ingredients: String,
+    /// }
+    /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
+    /// let query = Select::from_table(Recipe::table()).so_that(search.not_matches("chicken"));
+    /// let (sql, params) = Postgres::build(query)?;
+    ///
+    /// assert_eq!(
+    ///    "SELECT \"recipes\".* FROM \"recipes\" \
+    ///     WHERE (NOT to_tsvector(\"recipes\".\"name\"|| ' ' ||\"recipes\".\"ingredients\") @@ to_tsquery($1))", sql
+    /// );
+    ///
+    /// assert_eq!(params, vec![Value::from("chicken")]);
+    /// # Ok(())    
+    /// # }
+    /// ```
+    #[cfg(feature = "postgresql")]
+    fn not_matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>;
+
     /// Compares two expressions with a custom operator.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".compare_raw("ILIKE", "%bar%"));
     /// let (sql, params) = Sqlite::build(query)?;
@@ -1085,5 +1147,27 @@ where
         let val: Expression<'a> = col.into();
 
         val.json_type_equals(json_type)
+    }
+
+    #[cfg(feature = "postgres")]
+    fn matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let col: Column<'a> = self.into();
+        let val: Expression<'a> = col.into();
+
+        val.matches(query)
+    }
+
+    #[cfg(feature = "postgres")]
+    fn not_matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let col: Column<'a> = self.into();
+        let val: Expression<'a> = col.into();
+
+        val.not_matches(query)
     }
 }

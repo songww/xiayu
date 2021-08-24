@@ -55,6 +55,30 @@ impl<'a> Expression<'a> {
     }
 
     #[allow(dead_code)]
+    #[cfg(feature = "json-type")]
+    pub(crate) fn into_json_value(self) -> Option<serde_json::Value> {
+        match self.kind {
+            #[cfg(feature = "json-type")]
+            ExpressionKind::Parameterized(Value::Json(json_val)) => json_val,
+            #[cfg(feature = "json-type")]
+            ExpressionKind::Value(expr) => expr.into_json_value(),
+            _ => None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_json_extract_fun(&self) -> bool {
+        match &self.kind {
+            ExpressionKind::Function(f) => match &f.typ_ {
+                #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+                FunctionType::JsonExtract(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn is_xml_value(&self) -> bool {
         self.kind.is_xml_value()
     }
@@ -508,5 +532,21 @@ impl<'a> Comparable<'a> for Expression<'a> {
         T: Into<JsonType>,
     {
         Compare::JsonCompare(JsonCompare::TypeEquals(Box::new(self), json_type.into()))
+    }
+
+    #[cfg(feature = "postgres")]
+    fn matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        Compare::Matches(Box::new(self), query.into())
+    }
+
+    #[cfg(feature = "postgres")]
+    fn not_matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        Compare::NotMatches(Box::new(self), query.into())
     }
 }

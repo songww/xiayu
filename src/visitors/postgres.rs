@@ -3,7 +3,7 @@ use std::fmt::{self, Write};
 use crate::ast::*;
 use crate::visitors::{self, Visitor};
 
-/// A visitor to generate queries for the postgres database.
+/// A visitor to generate queries for the PostgreSQL database.
 ///
 /// The returned parameter values implement the `ToSql` trait from postgres and
 /// can be used directly with the database.
@@ -403,6 +403,49 @@ impl<'a> Visitor<'a> for Postgres<'a> {
             JsonType::String => self.visit_expression(Value::text("string").into()),
             JsonType::Null => self.visit_expression(Value::text("null").into()),
         }
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_text_search(
+        &mut self,
+        text_search: crate::prelude::TextSearch<'a>,
+    ) -> visitor::Result {
+        let len = text_search.columns.len();
+        self.surround_with("to_tsvector(", ")", |s| {
+            for (i, column) in text_search.columns.into_iter().enumerate() {
+                s.visit_column(column)?;
+
+                if i < (len - 1) {
+                    s.write("|| ' ' ||")?;
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_matches(
+        &mut self,
+        left: Expression<'a>,
+        right: std::borrow::Cow<'a, str>,
+        not: bool,
+    ) -> visitor::Result {
+        if not {
+            self.write("(NOT ")?;
+        }
+
+        self.visit_expression(left)?;
+        self.write(" @@ ")?;
+        self.surround_with("to_tsquery(", ")", |s| {
+            s.visit_parameterized(Value::text(right))
+        })?;
+
+        if not {
+            self.write(")")?;
+        }
+
+        Ok(())
     }
 }
 

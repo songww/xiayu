@@ -2,10 +2,9 @@ use super::Visitor;
 #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 use crate::prelude::{JsonExtract, JsonType, TableType};
 use crate::{
-    ast::Value,
     ast::{
         Column, Comparable, Expression, ExpressionKind, Insert, IntoRaw, Join, JoinData, Joinable,
-        Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Values,
+        Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Value, Values,
     },
     error::{Error, ErrorKind},
     prelude::{Aliasable, Average, Query},

@@ -46,7 +46,7 @@ pub trait Visitor<'a> {
     /// The point of entry for visiting query ASTs.
     ///
     /// ```
-    /// # use xiayu::{ast::*, visitors::*, error::Error};
+    /// # use xiayu::{prelude::*, visitors::*, error::Error};
     /// # fn main() -> Result {
     /// let query = Select::from_table("cats");
     /// let (sqlite, _) = Sqlite::build(query.clone())?;
@@ -135,6 +135,17 @@ pub trait Visitor<'a> {
 
     #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(&mut self, left: Expression<'a>, json_type: JsonType) -> Result;
+
+    #[cfg(feature = "postgres")]
+    fn visit_text_search(&mut self, text_search: TextSearch<'a>) -> Result;
+
+    #[cfg(feature = "postgres")]
+    fn visit_matches(
+        &mut self,
+        left: Expression<'a>,
+        right: std::borrow::Cow<'a, str>,
+        not: bool,
+    ) -> Result;
 
     /// A visit to a value we parameterize
     fn visit_parameterized(&mut self, value: Value<'a>) -> Result {
@@ -632,30 +643,44 @@ pub trait Visitor<'a> {
         }
     }
 
+    fn visit_greater_than(&mut self, left: Expression<'a>, right: Expression<'a>) -> Result {
+        self.visit_expression(left)?;
+        self.write(" > ")?;
+        self.visit_expression(right)
+    }
+
+    fn visit_greater_than_or_equals(
+        &mut self,
+        left: Expression<'a>,
+        right: Expression<'a>,
+    ) -> Result {
+        self.visit_expression(left)?;
+        self.write(" >= ")?;
+        self.visit_expression(right)
+    }
+
+    fn visit_less_than(&mut self, left: Expression<'a>, right: Expression<'a>) -> Result {
+        self.visit_expression(left)?;
+        self.write(" < ")?;
+        self.visit_expression(right)
+    }
+
+    fn visit_less_than_or_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> Result {
+        self.visit_expression(left)?;
+        self.write(" <= ")?;
+        self.visit_expression(right)
+    }
+
     /// A comparison expression
     fn visit_compare(&mut self, compare: Compare<'a>) -> Result {
         match compare {
             Compare::Equals(left, right) => self.visit_equals(*left, *right),
             Compare::NotEquals(left, right) => self.visit_not_equals(*left, *right),
-            Compare::LessThan(left, right) => {
-                self.visit_expression(*left)?;
-                self.write(" < ")?;
-                self.visit_expression(*right)
-            }
-            Compare::LessThanOrEquals(left, right) => {
-                self.visit_expression(*left)?;
-                self.write(" <= ")?;
-                self.visit_expression(*right)
-            }
-            Compare::GreaterThan(left, right) => {
-                self.visit_expression(*left)?;
-                self.write(" > ")?;
-                self.visit_expression(*right)
-            }
+            Compare::LessThan(left, right) => self.visit_less_than(*left, *right),
+            Compare::LessThanOrEquals(left, right) => self.visit_less_than_or_equals(*left, *right),
+            Compare::GreaterThan(left, right) => self.visit_greater_than(*left, *right),
             Compare::GreaterThanOrEquals(left, right) => {
-                self.visit_expression(*left)?;
-                self.write(" >= ")?;
-                self.visit_expression(*right)
+                self.visit_greater_than_or_equals(*left, *right)
             }
             Compare::In(left, right) => match (*left, *right) {
                 // To prevent `x IN ()` from happening.
@@ -912,6 +937,10 @@ pub trait Visitor<'a> {
                     self.visit_json_type_equals(*left, json_type)
                 }
             },
+            #[cfg(feature = "postgres")]
+            Compare::Matches(left, right) => self.visit_matches(*left, right, false),
+            #[cfg(feature = "postgres")]
+            Compare::NotMatches(left, right) => self.visit_matches(*left, right, true),
         }
     }
 
@@ -1026,21 +1055,15 @@ pub trait Visitor<'a> {
             }
             FunctionType::Coalesce(coalesce) => {
                 self.write("COALESCE")?;
-                self.surround_with("(", ")", |s| {
-                    let len = coalesce.exprs.len();
-                    for (index, expr) in coalesce.exprs.into_iter().enumerate() {
-                        s.visit_expression(expr)?;
-                        if index < len - 1 {
-                            s.write(", ")?;
-                        }
-                    }
-
-                    Ok(())
-                })?;
+                self.surround_with("(", ")", |s| s.visit_columns(coalesce.exprs))?;
             }
             #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
             FunctionType::JsonExtract(json_extract) => {
                 self.visit_json_extract(json_extract)?;
+            }
+            #[cfg(feature = "postgres")]
+            FunctionType::TextSearch(text_search) => {
+                self.visit_text_search(text_search)?;
             }
         };
 
@@ -1085,7 +1108,7 @@ pub trait Visitor<'a> {
             .map(|c| c.clone())
             .collect::<Vec<_>>();
 
-        self.visit_column(Column::new(cte.identifier.to_string()))?;
+        self.visit_column(Column::new(cte.identifier.into_owned()))?;
 
         if !cols.is_empty() {
             self.write(" ")?;
