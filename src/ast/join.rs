@@ -45,7 +45,7 @@ pub trait Joinable<'a> {
     ///
     /// ```rust
     /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join_data = "b".on(("b", "id").equals(Column::from(("a", "id"))));
     /// let query = Select::from_table("a").inner_join(join_data);
     /// let (sql, _) = Sqlite::build(query)?;

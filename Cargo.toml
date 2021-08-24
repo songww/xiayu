@@ -1,7 +1,14 @@
 [package]
 name = "xiayu"
-version = "0.1.0"
+version = "0.1.0-alpha0"
 edition = "2018"
+authors = ["songww <sww4718168@163.com>"]
+description = "ORM powered by SQLx."
+documentation = "https://docs.rs/xiayu"
+homepage = "https://github.com/songww/xiayu"
+keywords = ["orm", "sqlx", "sqlite", "mysql", "mssql", "postgresql"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 [package.metadata.docs.rs]
 features = ["docs", "all"]
@@ -10,7 +17,7 @@ features = ["docs", "all"]
 name = "xiayu"
 
 [dependencies]
-xiayu-derive = { version = "0.1.0", path = "./derive" }
+xiayu-derive = { version = "0.1.0-alpha0", path = "./derive" }
 
 thiserror = "1.0"
 tracing = "0.1"
@@ -27,45 +34,33 @@ bigdecimal = { version = "0.2", package = "bigdecimal", optional = true }
 derive_more = { version = "0.99", features = ["as_ref", "as_mut", "deref", "deref_mut"] }
 indoc = { version = "1.0", optional = true }
 
+[dev-dependencies]
+tokio = { version = "1.10.0", features = ["rt"] }
+
 [features]
-default = [ "tokio-rustls", "postgres" ]
-docs = []
-tls = [ "sqlx/tls" ]
+default = [ "sqlite" ]
+docs = [ "sqlx/runtime-tokio-rustls" ]
 any = [ "sqlx/any" ]
 uuid-type = [ "uuid", "sqlx/uuid" ]
 json-type = [ "serde", "serde_json", "base64", "sqlx/json" ]
-# serde = [ "dep:serde", "chrono/serde" ]
 chrono-type = [ "chrono", "sqlx/chrono" ]
 mssql = [ "uuid-type", "chrono-type", "either", "sqlx/mssql", "indoc" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
 postgres = [ "sqlx/postgres" ]
 bigdecimal-type = [ "bigdecimal", "num-bigint", "sqlx/bigdecimal" ]
-tokio-rustls = [ "sqlx/runtime-tokio-rustls" ]
-tokio-native-tls = [ "sqlx/runtime-tokio-native-tls" ]
-async-std-rustls = [ "sqlx/runtime-async-std-rustls" ]
-async-std-native-tls = [ "sqlx/runtime-async-std-native-tls" ]
-actix-rustls = [ "sqlx/runtime-actix-rustls" ]
-actix-native-tls = [ "sqlx/runtime-actix-native-tls" ]
 
 all = [
     "any",
-    "tls",
     "json-type",
     "uuid-type",
     "chrono-type",
-    #"mssql",
+    "mssql",
     "mysql",
     "serde",
     "sqlite",
     "postgres",
     "bigdecimal-type",
-    "async-std-rustls",
-    "async-std-native-tls",
-    "tokio-rustls",
-    "tokio-native-tls",
-    "actix-rustls",
-    "actix-native-tls",
 ]
 
 [workspace]

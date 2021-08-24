@@ -16,9 +16,9 @@ pub struct RowToJson<'a> {
 /// Only available for `postgres`
 ///
 /// ```no_run
-/// # use quaint::{ast::*, prelude::Queryable, visitors::{Visitor, Postgres}, single::Quaint, val};
+/// # use xiayu::{ast::*, prelude::Queryable, visitors::{Visitor, Postgres}, single::Quaint, val};
 /// # #[tokio::main]
-/// # async fn main() -> Result<(), quaint::error::Error> {
+/// # async fn main() -> Result<(), xiayu::error::Error> {
 /// # let conn = Quaint::new_in_memory()?;
 /// let cte = Select::default()
 ///     .value(val!("hello_world").alias("toto"))

@@ -16,6 +16,15 @@ pub struct Sqlite<'a> {
     parameters: Vec<Value<'a>>,
 }
 
+impl<'a> Default for Sqlite<'a> {
+    fn default() -> Self {
+        Sqlite {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Sqlite<'a> {
     const C_BACKTICK_OPEN: &'static str = "`";
     const C_BACKTICK_CLOSE: &'static str = "`";
@@ -279,6 +288,24 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         _json_type: JsonType,
     ) -> visitors::Result {
         unimplemented!("JSON_TYPE is not yet supported on SQLite")
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_text_search(
+        &mut self,
+        _text_search: crate::prelude::TextSearch<'a>,
+    ) -> visitor::Result {
+        unimplemented!("Full-text search is not yet supported on SQLite")
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_matches(
+        &mut self,
+        _left: Expression<'a>,
+        _right: std::borrow::Cow<'a, str>,
+        _not: bool,
+    ) -> visitor::Result {
+        unimplemented!("Full-text search is not yet supported on SQLite")
     }
 }
 

@@ -2,9 +2,9 @@
 //!
 //! The ast module handles everything related building abstract SQL queries
 //! without going into database-level specifics. Everything related to the
-//! actual query building is in the [visitor](../visitor/index.html) module.
+//! actual query building is in the [visitors](../visitors/index.html) module.
 //!
-//! For prelude, all important imports are in `quaint::ast::*`.
+//! For prelude, all important imports are in `xiayu::ast::*`.
 mod column;
 mod compare;
 mod conditions;

@@ -11,8 +11,8 @@ pub struct AggregateToString<'a> {
 /// Aggregates the given field into a string.
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let query = Select::from_table("users").value(aggregate_to_string(Column::new("firstName")))
 ///     .group_by("firstName");
 ///

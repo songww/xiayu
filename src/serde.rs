@@ -35,7 +35,7 @@ pub fn from_rows<T: DeserializeOwned>(result_set: ResultSet) -> crate::Result<Ve
 ///
 /// ```
 /// # use serde::Deserialize;
-/// # use quaint::ast::Value;
+/// # use xiayu::ast::Value;
 /// #
 /// # #[derive(Deserialize, Debug, PartialEq)]
 /// # struct User {
@@ -45,13 +45,13 @@ pub fn from_rows<T: DeserializeOwned>(result_set: ResultSet) -> crate::Result<Ve
 /// #
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// #
-/// #   let row = quaint::serde::make_row(vec![
+/// #   let row = xiayu::serde::make_row(vec![
 /// #       ("id", Value::from(12)),
 /// #       ("name", "Georgina".into()),
 /// #   ]);
 /// #
 /// #
-/// let user: User = quaint::serde::from_row(row)?;
+/// let user: User = xiayu::serde::from_row(row)?;
 ///
 /// assert_eq!(user, User { name: "Georgina".to_string(), id: 12 });
 /// # Ok(())

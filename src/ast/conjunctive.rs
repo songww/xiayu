@@ -5,7 +5,7 @@ pub trait Conjunctive<'a> {
     /// Builds an `AND` condition having `self` as the left leaf and `other` as the right.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
     /// assert_eq!(
     ///     "foo".equals("bar").and("wtf".less_than(3)),
     ///     ConditionTree::And(vec![
@@ -21,7 +21,7 @@ pub trait Conjunctive<'a> {
     /// Builds an `OR` condition having `self` as the left leaf and `other` as the right.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
     /// assert_eq!(
     ///     "foo".equals("bar").or("wtf".less_than(3)),
     ///     ConditionTree::Or(vec![
@@ -37,7 +37,7 @@ pub trait Conjunctive<'a> {
     /// Builds a `NOT` condition having `self` as the condition.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
     /// assert_eq!(
     ///     "foo".equals("bar").not(),
     ///     ConditionTree::not("foo".equals("bar"))

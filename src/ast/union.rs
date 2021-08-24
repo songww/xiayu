@@ -52,8 +52,8 @@ impl<'a> Union<'a> {
     /// statement, allowing duplicates.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let s1 = Select::default().value(1);
     /// let s2 = Select::default().value(2);
     /// let (sql, params) = Sqlite::build(Union::new(s1).all(s2))?;
@@ -77,8 +77,8 @@ impl<'a> Union<'a> {
     /// statement, selecting only distinct values.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let s1 = Select::default().value(1);
     /// let s2 = Select::default().value(2);
     /// let (sql, params) = Sqlite::build(Union::new(s1).distinct(s2))?;

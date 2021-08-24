@@ -55,6 +55,12 @@ pub enum Compare<'a> {
     #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
     // All json related comparators
     JsonCompare(JsonCompare<'a>),
+    /// `left` @@ to_tsquery(`value`)
+    #[cfg(feature = "postgresql")]
+    Matches(Box<Expression<'a>>, Cow<'a, str>),
+    /// (NOT `left` @@ to_tsquery(`value`))
+    #[cfg(feature = "postgresql")]
+    NotMatches(Box<Expression<'a>>, Cow<'a, str>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -260,12 +266,16 @@ pub trait Comparable<'a> {
     /// Tests if both sides are the same value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".equals("bar"));
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: String,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.equals("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
-    /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` = ?", sql);
+    /// assert_eq!("SELECT `users`.* FROM `users` WHERE `users`.`foo` = ?", sql);
     ///
     /// assert_eq!(
     ///     vec![
@@ -283,9 +293,13 @@ pub trait Comparable<'a> {
     /// Tests if both sides are not the same value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".not_equals("bar"));
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: String,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.not_equals("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` <> ?", sql);
@@ -306,9 +320,13 @@ pub trait Comparable<'a> {
     /// Tests if the left side is smaller than the right side.
     ///
     /// ```rust
-    /// # fn main() -> Result<(), quaint::error::Error> {
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// let query = Select::from_table("users").so_that("foo".less_than(10));
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.less_than(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` < ?", sql);
@@ -329,9 +347,13 @@ pub trait Comparable<'a> {
     /// Tests if the left side is smaller than the right side or the same.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".less_than_or_equals(10));
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.less_than_or_equals(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` <= ?", sql);
@@ -352,9 +374,13 @@ pub trait Comparable<'a> {
     /// Tests if the left side is bigger than the right side.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
-    /// let query = Select::from_table("users").so_that("foo".greater_than(10));
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct User {
+    ///   foo: i32,
+    /// }
+    /// let query = Select::from_table(User).so_that(User::foo.greater_than(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("SELECT `users`.* FROM `users` WHERE `foo` > ?", sql);
@@ -375,8 +401,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side is bigger than the right side or the same.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".greater_than_or_equals(10));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -398,8 +424,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side is included in the right side collection.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".in_selection(vec![1, 2]));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -418,8 +444,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side is not included in the right side collection.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".not_in_selection(vec![1, 2]));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -439,8 +465,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side includes the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".like("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -462,8 +488,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side does not include the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".not_like("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -485,8 +511,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side starts with the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".begins_with("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -508,8 +534,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side doesn't start with the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".not_begins_with("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -531,8 +557,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side ends into the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".ends_into("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -554,8 +580,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side does not end into the right side string.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".not_ends_into("bar"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -577,8 +603,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side is `NULL`.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".is_null());
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -592,8 +618,8 @@ pub trait Comparable<'a> {
     /// Tests if the left side is not `NULL`.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".is_not_null());
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -607,8 +633,8 @@ pub trait Comparable<'a> {
     /// Tests if the value is between two given values.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".between(420, 666));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -629,8 +655,8 @@ pub trait Comparable<'a> {
     /// Tests if the value is not between two given values.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".not_between(420, 666));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -651,8 +677,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array contains a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_contains("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -670,8 +696,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array does not contain a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_not_contains("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -689,8 +715,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array starts with a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_begins_with("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -711,8 +737,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array does not start with a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_not_begins_with("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -733,8 +759,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array ends with a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_ends_into("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -754,8 +780,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON array does not end with a value.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_array_not_ends_into("1"));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -775,8 +801,8 @@ pub trait Comparable<'a> {
     /// Tests if the JSON value is of a certain type.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mysql}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mysql}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("json".json_type_equals(JsonType::Array));
     /// let (sql, params) = Mysql::build(query)?;
     ///
@@ -791,11 +817,67 @@ pub trait Comparable<'a> {
     where
         T: Into<JsonType>;
 
+    /// Tests if a full-text search matches a certain query. Use it in combination with the `text_search()` function
+    ///
+    /// ```rust
+    /// # use xiaye::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct Recipe {
+    ///   name: String,
+    ///   ingredients: String,
+    /// }
+    /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
+    /// let query = Select::from_table(Recipe::table()).so_that(search.matches("chicken"));
+    /// let (sql, params) = Postgres::build(query)?;
+    ///
+    /// assert_eq!(
+    ///    "SELECT \"recipes\".* FROM \"recipes\" \
+    ///     WHERE to_tsvector(\"recipes\".\"name\"|| ' ' ||\"recipes\".\"ingredients\") @@ to_tsquery($1)", sql
+    /// );
+    ///
+    /// assert_eq!(params, vec![Value::from("chicken")]);
+    /// # Ok(())    
+    /// # }
+    /// ```
+    #[cfg(feature = "postgresql")]
+    fn matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>;
+
+    /// Tests if a full-text search does not match a certain query. Use it in combination with the `text_search()` function
+    ///
+    /// ```rust
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// #[derive(Entity)]
+    /// struct Recipe {
+    ///   name: String,
+    ///   ingredients: String,
+    /// }
+    /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
+    /// let query = Select::from_table(Recipe::table()).so_that(search.not_matches("chicken"));
+    /// let (sql, params) = Postgres::build(query)?;
+    ///
+    /// assert_eq!(
+    ///    "SELECT \"recipes\".* FROM \"recipes\" \
+    ///     WHERE (NOT to_tsvector(\"recipes\".\"name\"|| ' ' ||\"recipes\".\"ingredients\") @@ to_tsquery($1))", sql
+    /// );
+    ///
+    /// assert_eq!(params, vec![Value::from("chicken")]);
+    /// # Ok(())    
+    /// # }
+    /// ```
+    #[cfg(feature = "postgresql")]
+    fn not_matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>;
+
     /// Compares two expressions with a custom operator.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Select::from_table("users").so_that("foo".compare_raw("ILIKE", "%bar%"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -1065,5 +1147,27 @@ where
         let val: Expression<'a> = col.into();
 
         val.json_type_equals(json_type)
+    }
+
+    #[cfg(feature = "postgres")]
+    fn matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let col: Column<'a> = self.into();
+        let val: Expression<'a> = col.into();
+
+        val.matches(query)
+    }
+
+    #[cfg(feature = "postgres")]
+    fn not_matches<T>(self, query: T) -> Compare<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let col: Column<'a> = self.into();
+        let val: Expression<'a> = col.into();
+
+        val.not_matches(query)
     }
 }

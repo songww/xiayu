@@ -34,7 +34,7 @@ pub struct Table<'a> {
     pub typ: TableType<'a>,
     pub alias: Option<Cow<'a, str>>,
     pub database: Option<Cow<'a, str>>,
-    pub(crate) index_definitions: Vec<IndexDefinition<'a>>,
+    pub index_definitions: Vec<IndexDefinition<'a>>,
 }
 
 impl<'a> PartialEq for Table<'a> {
@@ -148,8 +148,8 @@ impl<'a> Table<'a> {
     /// Useful to positionally add a JOIN clause in case you are selecting from multiple tables.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let joined_table = Table::from("users").left_join(join);
     /// let query = Select::from_table(joined_table).and_from("comments");
@@ -198,8 +198,8 @@ impl<'a> Table<'a> {
     /// Useful to positionally add a JOIN clause in case you are selecting from multiple tables.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let joined_table = Table::from("users").inner_join(join);
     /// let query = Select::from_table(joined_table).and_from("comments");
@@ -246,8 +246,8 @@ impl<'a> Table<'a> {
     /// Useful to positionally add a JOIN clause in case you are selecting from multiple tables.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let joined_table = Table::from("users").right_join(join);
     /// let query = Select::from_table(joined_table).and_from("comments");
@@ -294,8 +294,8 @@ impl<'a> Table<'a> {
     /// Useful to positionally add a JOIN clause in case you are selecting from multiple tables.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let join = "posts".alias("p").on(("p", "visible").equals(true));
     /// let joined_table = Table::from("users").full_join(join);
     /// let query = Select::from_table(joined_table).and_from("comments");

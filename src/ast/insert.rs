@@ -33,8 +33,8 @@ pub enum OnConflict {
     /// SQLite without schema information.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query: Insert = Insert::single_into("users").into();
     /// let (sql, _) = Sqlite::build(query.on_conflict(OnConflict::DoNothing))?;
     /// assert_eq!("INSERT OR IGNORE INTO `users` DEFAULT VALUES", sql);
@@ -49,9 +49,9 @@ pub enum OnConflict {
     /// In this example our `users` table holds one unique index for the `id` column.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Mssql}};
+    /// # use xiayu::{ast::*, visitors::{Visitor, Mssql}};
     /// # use indoc::indoc;
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let id = Column::from("id").table("users");
     /// let table = Table::from("users").add_unique_index(id.clone());
     /// let query: Insert = Insert::single_into(table).value(id, 1).into();
@@ -140,8 +140,8 @@ impl<'a> Insert<'a> {
     /// Creates a new single row `INSERT` statement for the given table.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Insert::single_into("users");
     /// let (sql, _) = Sqlite::build(query)?;
     ///
@@ -219,8 +219,8 @@ impl<'a> Insert<'a> {
     /// Sets the returned columns.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Postgres}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Postgres}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Insert::single_into("users");
     /// let insert = Insert::from(query).returning(vec!["id"]);
     /// let (sql, _) = Postgres::build(insert)?;
@@ -248,8 +248,8 @@ impl<'a> SingleRowInsert<'a> {
     /// Adds a new value to the `INSERT` statement
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Insert::single_into("users").value("foo", 10);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -279,8 +279,8 @@ impl<'a> MultiRowInsert<'a> {
     /// Adds a new row to be inserted.
     ///
     /// ```rust
-    /// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), quaint::error::Error> {
+    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # fn main() -> Result<(), xiayu::error::Error> {
     /// let query = Insert::multi_into("users", vec!["foo"])
     ///     .values(vec![1])
     ///     .values(vec![2]);

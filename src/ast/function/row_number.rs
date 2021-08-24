@@ -30,8 +30,8 @@ impl<'a> RowNumber<'a> {
 /// A number from 1 to n in specified order
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let fun = Function::from(row_number().order_by("created_at").partition_by("name"));
 ///
 /// let query = Select::from_table("users")

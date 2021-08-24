@@ -1,10 +1,5 @@
 #![cfg_attr(feature = "docs", feature(doc_cfg))]
 
-#[macro_use]
-extern crate derive_more;
-#[macro_use]
-extern crate xiayu_derive;
-
 #[cfg(not(any(
     feature = "sqlite",
     feature = "postgres",
@@ -21,6 +16,7 @@ mod macros;
 #[macro_use]
 pub mod visitors;
 pub mod ast;
+pub mod databases;
 pub mod error;
 /*
 #[cfg(feature = "serde")]
@@ -31,9 +27,14 @@ pub mod serde;
 pub type Result<T> = std::result::Result<T, error::Error>;
 
 pub mod prelude {
+    use std::future::Future;
     use std::marker::PhantomData;
 
+    use sqlx::Database;
+    use sqlx::Executor;
     pub use xiayu_derive::Entity;
+
+    pub use crate::databases::{DeleteRequest, FetchRequest, SaveRequest};
 
     pub use super::ast::*;
     pub use super::Result;
@@ -41,12 +42,27 @@ pub mod prelude {
     #[derive(Clone, Debug)]
     pub struct DefaultValue<T>(fn() -> T);
 
+    impl<T> DefaultValue<T> {
+        fn get(&self) -> T {
+            (self.0)()
+        }
+    }
+
     /// select().where(Entity::last_modified == now())
     pub trait Entity {
         const COLUMNS: &'static [Column<'static>];
         fn tablename() -> &'static str;
         fn columns() -> &'static [Column<'static>];
         fn table() -> Table<'static>;
+
+        /*
+        fn select<'a, E>() -> Select<'a>
+        where
+            E: Entity,
+        {
+            Select::from_table(Self::table()).columns(E::columns())
+        }
+        */
     }
 
     pub trait EntityInstantiated: Entity {
@@ -57,17 +73,24 @@ pub mod prelude {
         fn columns(&self) -> &'static [Column<'static>] {
             <Self as Entity>::columns()
         }
-
-        // fn table(&self) -> Table<'static> {
-        //     <Self as Entity>::table()
-        // }
     }
 
     impl<T> EntityInstantiated for T where T: Entity {}
 
     pub trait HasPrimaryKey: Entity {
         type PrimaryKey;
+        type PrimaryKeyValueType;
         fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
+        fn pk(&self) -> <Self as HasPrimaryKey>::PrimaryKeyValueType;
+        fn get<DB: sqlx::Database>(pk: Self::PrimaryKeyValueType) -> FetchRequest<Self, DB>
+        where
+            Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row> + Sized;
+        fn delete<'e, DB: sqlx::Database>(&'e mut self) -> DeleteRequest<'e, Self, DB>
+        where
+            Self: Sized;
+        fn save<'e, DB: sqlx::Database>(&'e mut self) -> SaveRequest<'e, Self, DB>
+        where
+            Self: Sized;
     }
 
     #[derive(Clone)]
@@ -150,6 +173,8 @@ pub mod prelude {
         pub fn t(&self) -> Table<'static> {
             self.table()
         }
+
+        // pub create_table() -> CreateTable;
     }
 
     impl<'a, T> From<ColumnOptions<T>> for Column<'a> {

@@ -39,6 +39,73 @@ impl<'a> Mysql<'a> {
 
         Ok(())
     }
+
+    fn visit_numeric_comparison(
+        &mut self,
+        left: Expression<'a>,
+        right: Expression<'a>,
+        sign: &str,
+    ) -> visitor::Result {
+        #[cfg(feature = "json-type")]
+        fn json_to_quaint_value<'a>(json: serde_json::Value) -> crate::Result<Value<'a>> {
+            match json {
+                serde_json::Value::String(str) => Ok(Value::text(str)),
+                serde_json::Value::Number(number) => {
+                    if let Some(int) = number.as_i64() {
+                        Ok(Value::integer(int))
+                    } else if let Some(float) = number.as_f64() {
+                        Ok(Value::double(float))
+                    } else {
+                        unreachable!()
+                    }
+                }
+                x => {
+                    let msg = format!("Expected JSON string or number, found: {}", x);
+                    let kind = ErrorKind::conversion(msg.clone());
+
+                    let mut builder = Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            }
+        }
+
+        match (left, right) {
+            #[cfg(feature = "json-type")]
+            (left, right) if left.is_json_value() && right.is_json_extract_fun() => {
+                let quaint_value = json_to_quaint_value(left.into_json_value().unwrap())?;
+
+                self.visit_parameterized(quaint_value)?;
+                self.write(format!(" {} ", sign))?;
+                self.visit_expression(right)?;
+            }
+            #[cfg(feature = "json-type")]
+            (left, right) if left.is_json_extract_fun() && right.is_json_value() => {
+                let quaint_value = json_to_quaint_value(right.into_json_value().unwrap())?;
+
+                self.visit_expression(left)?;
+                self.write(format!(" {} ", sign))?;
+                self.visit_parameterized(quaint_value)?;
+            }
+            (left, right) => {
+                self.visit_expression(left)?;
+                self.write(format!(" {} ", sign))?;
+                self.visit_expression(right)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> Default for Mysql<'a> {
+    fn default() -> Self {
+        Mysql {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+        }
+    }
 }
 
 impl<'a> Visitor<'a> for Mysql<'a> {
@@ -436,6 +503,60 @@ impl<'a> Visitor<'a> for Mysql<'a> {
 
         self.write(")")
     }
+
+    fn visit_greater_than(
+        &mut self,
+        left: Expression<'a>,
+        right: Expression<'a>,
+    ) -> visitor::Result {
+        self.visit_numeric_comparison(left, right, ">")?;
+
+        Ok(())
+    }
+
+    fn visit_greater_than_or_equals(
+        &mut self,
+        left: Expression<'a>,
+        right: Expression<'a>,
+    ) -> visitor::Result {
+        self.visit_numeric_comparison(left, right, ">=")?;
+
+        Ok(())
+    }
+
+    fn visit_less_than(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitor::Result {
+        self.visit_numeric_comparison(left, right, "<")?;
+
+        Ok(())
+    }
+
+    fn visit_less_than_or_equals(
+        &mut self,
+        left: Expression<'a>,
+        right: Expression<'a>,
+    ) -> visitor::Result {
+        self.visit_numeric_comparison(left, right, "<=")?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_text_search(
+        &mut self,
+        _text_search: crate::prelude::TextSearch<'a>,
+    ) -> visitor::Result {
+        unimplemented!("Full-text search is not yet supported on MySQL")
+    }
+
+    #[cfg(feature = "postgres")]
+    fn visit_matches(
+        &mut self,
+        _left: Expression<'a>,
+        _right: std::borrow::Cow<'a, str>,
+        _not: bool,
+    ) -> visitor::Result {
+        unimplemented!("Full-text search is not yet supported on MySQL")
+    }
 }
 
 #[cfg(test)]
@@ -760,10 +881,7 @@ mod tests {
 
         let (sql, _) = Mysql::build(insert).unwrap();
 
-        assert_eq!(
-            "INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)",
-            sql
-        );
+        assert_eq!("INSERT INTO `foo` (`foo`,`baz`) VALUES (?,DEFAULT)", sql);
     }
 
     #[derive(Entity)]

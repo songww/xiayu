@@ -10,8 +10,8 @@ pub struct Sum<'a> {
 /// Calculates the sum value of a numeric column.
 ///
 /// ```rust
-/// # use quaint::{ast::*, visitor::{Visitor, Sqlite}, col};
-/// # fn main() -> Result<(), quaint::error::Error> {
+/// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}, col};
+/// # fn main() -> Result<(), xiayu::error::Error> {
 /// let query = Select::from_table("users").value(sum(col!("age")).alias("sum"));
 /// let (sql, _) = Sqlite::build(query)?;
 /// assert_eq!("SELECT SUM(`age`) AS `sum` FROM `users`", sql);

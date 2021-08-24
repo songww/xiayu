@@ -2,10 +2,9 @@ use super::Visitor;
 #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
 use crate::prelude::{JsonExtract, JsonType, TableType};
 use crate::{
-    ast::Value,
     ast::{
         Column, Comparable, Expression, ExpressionKind, Insert, IntoRaw, Join, JoinData, Joinable,
-        Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Values,
+        Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Value, Values,
     },
     error::{Error, ErrorKind},
     prelude::{Aliasable, Average, Query},
@@ -173,6 +172,16 @@ impl<'a> Mssql<'a> {
         self.write(" WHERE @@ROWCOUNT > 0")?;
 
         Ok(())
+    }
+}
+
+impl<'a> Default for Mssql<'a> {
+    fn default() -> Self {
+        Mssql {
+            query: String::with_capacity(4096),
+            parameters: Vec::with_capacity(128),
+            order_by_set: false,
+        }
     }
 }
 
