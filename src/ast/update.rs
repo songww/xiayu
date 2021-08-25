@@ -54,7 +54,7 @@ impl<'a> Update<'a> {
         K: Into<Column<'a>>,
         V: Into<Expression<'a>>,
     {
-        self.columns.push(column.into());
+        self.columns.push(column.into().opt_table(None));
         self.values.push(value.into());
 
         self

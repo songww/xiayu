@@ -52,14 +52,14 @@ pub enum Compare<'a> {
     /// Raw comparator, allows to use an operator `left <raw> right` as is,
     /// without visitor transformation in between.
     Raw(Box<Expression<'a>>, Cow<'a, str>, Box<Expression<'a>>),
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     // All json related comparators
     JsonCompare(JsonCompare<'a>),
     /// `left` @@ to_tsquery(`value`)
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     Matches(Box<Expression<'a>>, Cow<'a, str>),
     /// (NOT `left` @@ to_tsquery(`value`))
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     NotMatches(Box<Expression<'a>>, Cow<'a, str>),
 }
 
@@ -267,7 +267,7 @@ pub trait Comparable<'a> {
     ///
     /// ```rust
     /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// # fn main() -> Result<()> {
     /// #[derive(Entity)]
     /// struct User {
     ///   foo: String,
@@ -688,7 +688,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -707,7 +707,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -729,7 +729,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -751,7 +751,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -772,7 +772,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -793,7 +793,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>;
@@ -812,7 +812,7 @@ pub trait Comparable<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_type_equals<T>(self, json_type: T) -> Compare<'a>
     where
         T: Into<JsonType>;
@@ -820,13 +820,9 @@ pub trait Comparable<'a> {
     /// Tests if a full-text search matches a certain query. Use it in combination with the `text_search()` function
     ///
     /// ```rust
-    /// # use xiaye::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # use entities::*;
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// #[derive(Entity)]
-    /// struct Recipe {
-    ///   name: String,
-    ///   ingredients: String,
-    /// }
     /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
     /// let query = Select::from_table(Recipe::table()).so_that(search.matches("chicken"));
     /// let (sql, params) = Postgres::build(query)?;
@@ -840,7 +836,7 @@ pub trait Comparable<'a> {
     /// # Ok(())    
     /// # }
     /// ```
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     fn matches<T>(self, query: T) -> Compare<'a>
     where
         T: Into<Cow<'a, str>>;
@@ -848,13 +844,9 @@ pub trait Comparable<'a> {
     /// Tests if a full-text search does not match a certain query. Use it in combination with the `text_search()` function
     ///
     /// ```rust
+    /// # use entities::*;
     /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// #[derive(Entity)]
-    /// struct Recipe {
-    ///   name: String,
-    ///   ingredients: String,
-    /// }
     /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
     /// let query = Select::from_table(Recipe::table()).so_that(search.not_matches("chicken"));
     /// let (sql, params) = Postgres::build(query)?;
@@ -868,7 +860,7 @@ pub trait Comparable<'a> {
     /// # Ok(())    
     /// # }
     /// ```
-    #[cfg(feature = "postgresql")]
+    #[cfg(feature = "postgres")]
     fn not_matches<T>(self, query: T) -> Compare<'a>
     where
         T: Into<Cow<'a, str>>;
@@ -877,7 +869,7 @@ pub trait Comparable<'a> {
     ///
     /// ```rust
     /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// # fn main() -> Result<()> {
     /// let query = Select::from_table("users").so_that("foo".compare_raw("ILIKE", "%bar%"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
@@ -1072,7 +1064,7 @@ where
         left.compare_raw(raw_comparator.into(), right)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1083,7 +1075,7 @@ where
         val.json_array_contains(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1094,7 +1086,7 @@ where
         val.json_array_not_contains(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1105,7 +1097,7 @@ where
         val.json_array_begins_with(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1116,7 +1108,7 @@ where
         val.json_array_not_begins_with(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1127,7 +1119,7 @@ where
         val.json_array_ends_into(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -1138,7 +1130,7 @@ where
         val.json_array_not_ends_into(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_type_equals<T>(self, json_type: T) -> Compare<'a>
     where
         T: Into<JsonType>,

@@ -7,7 +7,7 @@
 /// let condition = Row::from((col!("id"), col!("name")))
 ///     .in_selection(values!((1, "Musti"), (2, "Naukio")));
 ///
-/// let query = Select::from_table("cats").so_that(condition);
+/// let query = Select::from_table(Cat::table()).so_that(condition);
 /// let (sql, _) = Sqlite::build(query)?;
 ///
 /// assert_eq!(
@@ -28,13 +28,14 @@ macro_rules! values {
 /// calculations, e.g.
 ///
 /// ``` rust
+/// # use entities::{Cat, Dog};
 /// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
-/// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
+/// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///
-/// let query = Select::from_table("cats")
-///     .value(Table::from("cats").asterisk())
-///     .value(col!("dogs", "age") - val!(4))
+/// let query = Select::from_table(Cat::table())
+///     .value(Cat::table().asterisk())
+///     .value(Dog::age - val!(4))
 ///     .inner_join(join);
 ///
 /// let (sql, params) = Sqlite::build(query)?;
@@ -49,11 +50,11 @@ macro_rules! values {
 #[macro_export]
 macro_rules! col {
     ($e1:expr) => {
-        Expression::from(Column::from($e1))
+        Expression::from(Column::new($e1))
     };
 
     ($e1:expr, $e2:expr) => {
-        Expression::from(Column::from(($e1, $e2)))
+        Expression::from(Column::new($e1).table($e2))
     };
 }
 
@@ -61,13 +62,14 @@ macro_rules! col {
 /// e.g.
 ///
 /// ``` rust
+/// # use entities::{Cat, Dog};
 /// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
-/// let join = "dogs".on(("dogs", "slave_id").equals(Column::from(("cats", "master_id"))));
+/// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///
-/// let query = Select::from_table("cats")
-///     .value(Table::from("cats").asterisk())
-///     .value(col!("dogs", "age") - val!(4))
+/// let query = Select::from_table(Cat::table())
+///     .value(Cat::table().asterisk())
+///     .value(Dog::age - val!(4))
 ///     .inner_join(join);
 ///
 /// let (sql, params) = Sqlite::build(query)?;
@@ -83,6 +85,26 @@ macro_rules! col {
 macro_rules! val {
     ($val:expr) => {
         Expression::from($val)
+    };
+}
+
+macro_rules! impl_value_from_json {
+    ($target:ident: $kind:ty,$paramkind:ident,$that:expr) => {
+        impl<'a> From<$kind> for crate::ast::Value<'a> {
+            fn from(that: $kind) -> Self {
+                let $target = that;
+                crate::ast::Value::Json(crate::ast::Json::$paramkind(Some($that)))
+            }
+        }
+
+        impl<'a> From<Option<$kind>> for crate::ast::Value<'a> {
+            fn from(that: Option<$kind>) -> Self {
+                match that {
+                    Some(val) => crate::ast::Value::Json(crate::ast::Json::$paramkind(Some(val))),
+                    None => crate::ast::Value::Json(crate::ast::Json::$paramkind(None)),
+                }
+            }
+        }
     };
 }
 
@@ -106,6 +128,7 @@ macro_rules! value {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! aliasable {
     ($($kind:ty),*) => (
         $(

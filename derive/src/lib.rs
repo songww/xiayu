@@ -319,7 +319,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
                 }
 
                 #[inline]
-                fn get<DB: ::sqlx::Database>(pk: Self::PrimaryKeyValueType) -> #namespace::FetchRequest<Self, DB>
+                fn get<DB: ::sqlx::Database>(pk: Self::PrimaryKeyValueType) -> #namespace::SelectingExecution<Self, DB>
                     where
                         Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row>,
                 {
@@ -329,19 +329,19 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
                 }
 
                 #[inline]
-                fn delete<'e, DB>(&'e mut self) -> #namespace::DeleteRequest<'e, Self, DB>
+                fn delete<'e, DB>(&'e mut self) -> #namespace::DeletingExecution<'e, Self, DB>
                     where
                         DB: ::sqlx::Database
                 {
-                    #namespace::DeleteRequest::new(#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), self)
+                    #namespace::DeletingExecution::new(#namespace::Delete::from_table(Self::table()).so_that(Self::primary_key().equals(self.pk())), self)
                 }
 
                 #[inline]
-                fn save<'e, DB>(&'e mut self) -> #namespace::SaveRequest<'e, Self, DB>
+                fn save<'e, DB>(&'e mut self) -> #namespace::SavingExecution<'e, Self, DB>
                     where
                         DB: ::sqlx::Database
                 {
-                    #namespace::SaveRequest::new(
+                    #namespace::SavingExecution::new(
                         #namespace::Update::table(Self::table())
                             #(.set(#ident::#names, self.#names.clone()))*
                             .so_that(Self::primary_key().equals(self.pk())),

@@ -1,3 +1,4 @@
+#![feature(const_panic)]
 #![cfg_attr(feature = "docs", feature(doc_cfg))]
 
 #[cfg(not(any(
@@ -8,9 +9,8 @@
 )))]
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
-#[cfg(feature = "bigdecimal-type")]
-extern crate bigdecimal as bigdecimal;
-
+#[macro_use]
+extern crate derive_more;
 #[macro_use]
 mod macros;
 #[macro_use]
@@ -18,11 +18,6 @@ pub mod visitors;
 pub mod ast;
 pub mod databases;
 pub mod error;
-/*
-#[cfg(feature = "serde")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
-pub mod serde;
-*/
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 
@@ -32,12 +27,15 @@ pub mod prelude {
 
     use sqlx::Database;
     use sqlx::Executor;
-    pub use xiayu_derive::Entity;
 
-    pub use crate::databases::{DeleteRequest, FetchRequest, SaveRequest};
+    pub use xiayu_derive::*;
 
-    pub use super::ast::*;
-    pub use super::Result;
+    pub use crate::ast::*;
+    pub use crate::databases::{
+        CreateTableExecution, DeletingExecution, Executioner, InsertingExecution, SavingExecution,
+        SelectingExecution,
+    };
+    pub use crate::Result;
 
     #[derive(Clone, Debug)]
     pub struct DefaultValue<T>(fn() -> T);
@@ -63,6 +61,21 @@ pub mod prelude {
             Select::from_table(Self::table()).columns(E::columns())
         }
         */
+        fn insert<'insert, DB>() -> InsertingExecution<DB, SingleRowInsert<'insert>>
+        where
+            DB: sqlx::Database,
+        {
+            Insert::single_into(Self::table()).into()
+        }
+
+        fn multi<'insert, C, I, DB>(columns: I) -> InsertingExecution<DB, MultiRowInsert<'insert>>
+        where
+            I: IntoIterator<Item = C>,
+            C: Into<Column<'static>>,
+            DB: sqlx::Database,
+        {
+            Insert::multi_into(Self::table(), columns).into()
+        }
     }
 
     pub trait EntityInstantiated: Entity {
@@ -82,13 +95,13 @@ pub mod prelude {
         type PrimaryKeyValueType;
         fn primary_key() -> <Self as HasPrimaryKey>::PrimaryKey;
         fn pk(&self) -> <Self as HasPrimaryKey>::PrimaryKeyValueType;
-        fn get<DB: sqlx::Database>(pk: Self::PrimaryKeyValueType) -> FetchRequest<Self, DB>
+        fn get<DB: sqlx::Database>(pk: Self::PrimaryKeyValueType) -> SelectingExecution<Self, DB>
         where
             Self: for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row> + Sized;
-        fn delete<'e, DB: sqlx::Database>(&'e mut self) -> DeleteRequest<'e, Self, DB>
+        fn delete<'e, DB: sqlx::Database>(&'e mut self) -> DeletingExecution<'e, Self, DB>
         where
             Self: Sized;
-        fn save<'e, DB: sqlx::Database>(&'e mut self) -> SaveRequest<'e, Self, DB>
+        fn save<'e, DB: sqlx::Database>(&'e mut self) -> SavingExecution<'e, Self, DB>
         where
             Self: Sized;
     }

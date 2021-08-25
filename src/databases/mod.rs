@@ -1,11 +1,15 @@
+use std::default;
 use std::marker::{PhantomData};
 
-#[cfg(feature = "chrono-type")]
+#[cfg(feature = "chrono")]
 use sqlx::types::chrono;
-use sqlx::{Arguments, Database, IntoArguments, FromRow};
+use sqlx::{Executor, Arguments, Database, IntoArguments, FromRow};
+use async_trait::async_trait;
 
-use crate::ast::Value;
-use crate::prelude::{Delete, Entity, HasPrimaryKey, Select, Update};
+use crate::ast::{Value};
+#[cfg(feature = "json")]
+use crate::ast::Json;
+use crate::prelude::{Column, Delete, Entity, HasPrimaryKey, Insert, MultiRowInsert, SingleRowInsert, Row, OnConflict, Select, Update, Expression};
 use crate::visitors::Visitor;
 
 pub trait HasVisitor<'a> {
@@ -45,137 +49,157 @@ impl<'a> HasVisitor<'a> for sqlx::Sqlite {
     }
 }
 
-pub struct Values<'a>(Vec<crate::ast::Value<'a>>);
+// pub struct Values<'a>(Vec<crate::ast::Value<'a>>);
 
-macro_rules! impl_into_arguments_for {
-    ($arguments: path, $database: path) => {
-        impl<'a> sqlx::IntoArguments<'a, $database> for Values<'a> 
-        {
-            fn into_arguments(self) -> $arguments {
-                let mut args = <$arguments>::default();
+macro_rules! bind_value {
+    ($query:ident, $value: ident) => {
+        match $value {
+            Value::Integer(integer) => $query.bind(integer),
 
-                macro_rules! args_add {
-                    ($v:expr, $ty: ty) => {
-                        match $v {
-                            Some(v) => args.add::<$ty>(v),
-                            None => args.add::<Option<$ty>>(None),
-                        }
-                    };
-                }
+            Value::I8(int8) => $query.bind(int8),
+            Value::I16(int16) => $query.bind(int16),
+            Value::I32(int32) => $query.bind(int32),
+            Value::I64(int64) => $query.bind(int64),
+            Value::Float(float) => $query.bind(float) ,
+            Value::Double(double) => $query.bind(double),
+            Value::Text(text) => $query.bind(text.map(|text|text.into_owned())),
+            Value::Bytes(bytes) => $query.bind(bytes.map(|b|b.into_owned())),
+            Value::Boolean(boolean) => $query.bind(boolean),
+            #[cfg(feature = "json")]
+            Value::Json(json) => match json {
+                // #[cfg(feature = "postgres")]
+                // Json::Json(json) => {
+                //     //
+                // }
+                Json::JsonValue(value) => $query.bind(value),
+                Json::JsonRawValue(raw_value) => $query.bind(raw_value.map(|v|sqlx::types::Json(*v)))
+            },
+            #[cfg(all(feature = "uuid", feature = "postgres"))]
+            Value::Uuid(uuid) => $query.bind(uuid),
+            #[cfg(feature = "postgres")]
+            Value::PgInterval(interval) => $query.bind(interval),
+            // #[cfg(feature = "postgres")]
+            // Value::PgRange(range) => $query.bind(range),
+            #[cfg(feature = "postgres")]
+            Value::PgMoney(money) => $query.bind(money),
+            #[cfg(all(feature = "bigdecimal", feature = "postgres"))]
+            Value::BigDecimal(bigdecimal) => $query.bind(bigdecimal),
+            #[cfg(all(feature = "decimal", feature = "postgres"))]
+            Value::Decimal(decimal) => $query.bind(decimal),
+            #[cfg(all(feature = "chrono", feature = "postgres"))]
+            Value::UtcDateTime(datetime) => $query.bind(datetime),
+            #[cfg(all(feature = "chrono", feature = "postgres"))]
+            Value::LocalDateTime(datetime) => $query.bind(datetime),
+            #[cfg(all(feature = "chrono", feature = "postgres"))]
+            Value::NaiveDateTime(datetime) => $query.bind(datetime),
+            #[cfg(all(feature = "chrono", feature = "postgres"))]
+            Value::NaiveDate(date) => $query.bind(date),
+            #[cfg(all(feature = "chrono", feature = "postgres"))]
+            Value::NaiveTime(time) => $query.bind(time),
+            #[cfg(all(feature = "time", feature = "postgres"))]
+            Value::PgTimeTz(timetz) => $query.bind(timetz),
+            #[cfg(all(feature = "ipnetwork", feature = "postgres"))]
+            Value::IpNetwork(ipnetwork) => $query.bind(ipnetwork),
 
-                macro_rules! to_json_value {
-                    ($v:expr) => {
-                        match $v {
-                            Value::Array(Some(array)) => serde_json::Value::Array(
-                                array.into_iter().map(|v| match v {
-                                    Value::Array(_) => {
-                                        panic!("Nested of nested of nested array are not supported yet.")
-                                    },
-                                    _ => {
-                                        serde_json::Value::from(v.clone())
-                                    }
-                                }).collect::<Vec<_>>(),
-                            ),
-                            Value::Array(None) => serde_json::Value::Null,
-                            _ => serde_json::Value::from($v.clone()),
-                        }
-                    };
-                }
-
-                macro_rules! value_to_argument {
-                    ($value:expr) => {
-                        match $value {
-                            Value::Boolean(boolean) => args_add!(boolean, bool),
-                            Value::Integer(integer) => args_add!(integer, i64),
-                            Value::Float(float) => args_add!(float, f32),
-                            Value::Double(double) => args_add!(double, f64),
-                            Value::Text(text) => args_add!(text.clone().map(|v| v.to_string()), String),
-                            Value::Enum(enumerable) => args_add!(enumerable.clone().map(|v| v.to_string()), String),
-                            Value::Bytes(bytes) => {
-                                args_add!(bytes.clone().map(|ref v| v.to_vec()), Vec<u8>)
-                            }
-                            Value::Char(char_) => args_add!(char_.map(|v| v.to_string()), String),
-                            #[cfg(all(feature = "postgres", feature = "json-type"))]
-                            Value::Array(array) => args_add!(
-                                array.clone().map(|array| {
-                                        array.into_iter()
-                                        .map(|v| to_json_value!(v))
-                                        .collect::<Vec<_>>()
-                                }),
-                                Vec<serde_json::Value>
-                            ),
-                            #[cfg(feature = "sqlite")]
-                            Value::Array(_) => unimplemented!("Arrays are not supported in SQLite."),
-                            #[cfg(feature = "bigdecimal-type")]
-                            Value::Numeric(numeric) => args_add!(numeric, bigdecimal::BigDecimal),
-                            #[cfg(feature = "json-type")]
-                            Value::Json(json) => args_add!(json.clone(), serde_json::value::Value),
-                            Value::Xml(xml) => args_add!(xml.clone().map(|v| v.to_string()), String),
-                            #[cfg(feature = "uuid-type")]
-                            Value::Uuid(uuid) => args_add!(uuid.clone(), sqlx::types::Uuid),
-                            #[cfg(feature = "chrono-type")]
-                            Value::DateTime(datetime) => {
-                                args_add!(datetime.clone(), chrono::DateTime<chrono::Utc>)
-                            }
-                            #[cfg(feature = "chrono-type")]
-                            Value::Date(date) => args_add!(date.clone(), chrono::NaiveDate),
-                            #[cfg(feature = "chrono-type")]
-                            Value::Time(time) => args_add!(time.clone(), chrono::NaiveTime),
-                        }
-                    };
-                }
-
-                for value in self.0.into_iter() {
-                    value_to_argument!(value);
-                }
-                args
-            }
+            _ => unimplemented!()
         }
     };
 }
 
-#[cfg(feature = "postgres")]
-impl_into_arguments_for!(::sqlx::postgres::PgArguments, ::sqlx::postgres::Postgres);
+pub trait Binder<'a, DB> where DB: sqlx::Database {
+    fn bind_value(self, value: Value<'a>) -> Self
+    where
+        Self: Sized;
+}
 
-#[cfg(feature = "mssql")]
-impl_into_arguments_for!(::sqlx::postgres::MssqlArguments<'a>, ::sqlx::postgres::Mssql);
+#[cfg(feature = "postgres")]
+impl<'a> Binder<'a, sqlx::Postgres> for sqlx::query::Query<'a, sqlx::Postgres, sqlx::postgres::PgArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
+
+#[cfg(feature = "postgres")]
+impl<'a, O> Binder<'a, sqlx::Postgres> for sqlx::query::QueryAs<'a, sqlx::Postgres, O, sqlx::postgres::PgArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
 
 #[cfg(feature = "mysql")]
-impl_into_arguments_for!(::sqlx::mysql::MySqlArguments<'a>, ::sqlx::mysql::MySql);
+impl<'a> Binder<'a, sqlx::MySql> for sqlx::query::Query<'a, sqlx::MySql, sqlx::mysql::MySqlArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
+
+#[cfg(feature = "mysql")]
+impl<'a, O> Binder<'a, sqlx::MySql> for sqlx::query::QueryAs<'a, sqlx::MySql, O, sqlx::mysql::MySqlArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
+
+#[cfg(feature = "mssql")]
+impl<'a> Binder<'a, sqlx::Mssql> for sqlx::query::Query<'a, sqlx::Mssql, O, sqlx::mssql::MssqlArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
+
+#[cfg(feature = "mssql")]
+impl<'a, O> Binder<'a, sqlx::Mssql> for sqlx::query::QueryAs<'a, sqlx::Mssql, O, sqlx::mssql::MssqlArguments> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
 
 #[cfg(feature = "sqlite")]
-impl_into_arguments_for!(::sqlx::sqlite::SqliteArguments<'a>, ::sqlx::sqlite::Sqlite);
+impl<'a> Binder<'a, sqlx::Sqlite> for sqlx::query::Query<'a, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'a>> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl<'a, O> Binder<'a, sqlx::Sqlite> for sqlx::query::QueryAs<'a, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'a>> {
+    fn bind_value(self, value: Value<'a>) -> Self {
+        bind_value!(self, value)
+    }
+}
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "query must be executed to affect database"]
-pub struct FetchRequest<T, DB: Database> {
+pub struct SelectingExecution<T, DB: Database> {
     select: Select<'static>,
     compiled: Option<String>,
     _marker: PhantomData<(T, DB)>,
 }
 
-impl<DB: Database, T: Send> FetchRequest<T, DB> {
+impl<DB: Database, T: Send> SelectingExecution<T, DB> {
     pub async fn conn<'a, C>(&'a mut self, conn: C) -> Result<T, crate::error::Error>
     where
         C: 'a + sqlx::Executor<'a, Database = DB>,
         DB: 'a + sqlx::Database + HasVisitor<'a>,
         <DB as sqlx::database::HasArguments<'a>>::Arguments: 'a + IntoArguments<'a, DB>,
         T: 'a + for<'r> sqlx::FromRow<'r, <DB as sqlx::Database>::Row> + Send + Unpin,
-        Values<'a>: IntoArguments<'a, DB>
+        sqlx::query::QueryAs<'a, DB, T, <DB as sqlx::database::HasArguments<'a>>::Arguments>: Binder<'a, DB>
     {
         let (query, parameters) =
             <<C as sqlx::Executor<'a>>::Database as HasVisitor>::Visitor::build(self.select.clone())?;
         // 'a for borrowed from self.query
         self.compiled.replace(query);
-        let arguments = IntoArguments::<'a, DB>::into_arguments(Values(parameters));
-        let v = sqlx::query_as_with::<DB, T, _>(self.compiled.as_ref().unwrap(), arguments)
-            .fetch_one(conn)
-            .await?;
+        let mut query = sqlx::query_as::<DB, T>(self.compiled.as_ref().unwrap());
+        for parameter in parameters {
+            query = query.bind_value(parameter);
+        }
+
+        let v = query.fetch_one(conn).await?;
         Ok(v)
     }
 }
 
-impl<T, DB> From<crate::ast::Select<'static>> for FetchRequest<T, DB>
+impl<T, DB> From<crate::ast::Select<'static>> for SelectingExecution<T, DB>
 where
     T: for<'r> FromRow<'r, <DB as Database>::Row>,
     DB: sqlx::Database
@@ -191,14 +215,14 @@ where
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "delete must be executed to affect database"]
-pub struct DeleteRequest<'a, E, DB> {
+pub struct DeletingExecution<'a, E, DB> {
     delete: Delete<'static>,
     compiled: Option<String>,
     entity: &'a mut E,
     _marker: PhantomData<DB>,
 }
 
-impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
+impl<'e, E: HasPrimaryKey, DB: Database> DeletingExecution<'e, E, DB> {
     pub fn new<'a>(delete: crate::ast::Delete<'static>, entity: &'e mut E) -> Self
     {
         Self {
@@ -215,14 +239,19 @@ impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
         C: 'a + sqlx::Executor<'a, Database = DB>,
         DB: 'a + sqlx::Database + HasVisitor<'a>,
         <DB as sqlx::database::HasArguments<'a>>::Arguments: 'a + IntoArguments<'a, DB>,
-        Values<'a>: IntoArguments<'a, DB>
+        sqlx::query::Query<'a, DB, <DB as sqlx::database::HasArguments<'a>>::Arguments>: Binder<'a, DB>
     {
         let (compiled, parameters) =
             <<C as sqlx::Executor<'a>>::Database as HasVisitor>::Visitor::build(self.delete.clone())?;
         // 'a for borrowed from self.compiled
         self.compiled.replace(compiled);
-        let arguments = IntoArguments::<'a, DB>::into_arguments(Values(parameters));
-        let _query_result = sqlx::query_with::<DB, _>(self.compiled.as_ref().unwrap(), arguments)
+        let mut query = sqlx::query::<DB>(self.compiled.as_ref().unwrap());
+        for parameter in parameters {
+            // query = bind_value!(query, parameter);
+            query = query.bind_value(parameter);
+        }
+
+        let _query_result = query
             .execute(conn)
             .await?;
         Ok(())
@@ -231,14 +260,14 @@ impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "save must be executed to affect database"]
-pub struct SaveRequest<'a, E, DB> {
+pub struct SavingExecution<'a, E, DB> {
     saving: Update<'static>,
     compiled: Option<String>,
     entity: &'a mut E,
     _marker: PhantomData<DB>,
 }
 
-impl<'e, E: HasPrimaryKey, DB: Database> SaveRequest<'e, E, DB> {
+impl<'e, E: HasPrimaryKey, DB: Database> SavingExecution<'e, E, DB> {
     pub fn new<'a>(saving: Update<'static>, entity: &'e mut E) -> Self
     {
         Self {
@@ -249,31 +278,213 @@ impl<'e, E: HasPrimaryKey, DB: Database> SaveRequest<'e, E, DB> {
         }
     }
 
+    #[must_use = "this must be used."]
     pub async fn conn<'a, C>(&'a mut self, conn: C) -> Result<(), crate::error::Error>
     where
         'e: 'a,
-        C: 'a + sqlx::Executor<'a, Database = DB>,
-        DB: 'a + sqlx::Database + HasVisitor<'a>,
+        C: 'a + Executioner<'a, DB>,
+        DB: 'a + sqlx::Database + for<'v> HasVisitor<'v>,
         <DB as sqlx::database::HasArguments<'a>>::Arguments: 'a + IntoArguments<'a, DB>,
-        Values<'a>: IntoArguments<'a, DB>
+        sqlx::query::Query<'a, DB, <DB as sqlx::database::HasArguments<'a>>::Arguments>: Binder<'a, DB>
     {
         let (compiled, parameters) =
             <<C as sqlx::Executor<'a>>::Database as HasVisitor>::Visitor::build(self.saving.clone())?;
         // 'a for borrowed from self.compiled
         println!("compiled update: {}", &compiled);
         self.compiled.replace(compiled);
-        let arguments = IntoArguments::<'a, DB>::into_arguments(Values(parameters));
-        let _query_result = sqlx::query_with::<DB, _>(self.compiled.as_ref().unwrap(), arguments)
+        let mut query = sqlx::query::<DB>(self.compiled.as_ref().unwrap());
+        for parameter in parameters {
+            query = query.bind_value(parameter);
+        }
+        let _query_result = query
             .execute(conn)
             .await?;
         Ok(())
     }
 }
 
-
 /// create table. Returned by [`get`][crate::prelude::entity::create_table].
-#[must_use = "delete must be executed to affect database"]
-pub struct CreateTable<DB> {
+#[must_use = "create table must be executed to affect database"]
+pub struct CreateTableExecution<DB> {
     _marker: PhantomData<DB>,
     compiled: Option<String>,
+}
+
+/// create table. Returned by [`get`][crate::prelude::entity::create].
+#[must_use = "insert must be executed to affect database"]
+#[derive(Clone, Debug)]
+pub struct InsertingExecution<DB, I> {
+    _marker: PhantomData<DB>,
+    insertion: I,
+    compiled: Option<String>,
+}
+
+impl<'a, DB> InsertingExecution<DB, MultiRowInsert<'a>> {
+    pub fn values<V>(mut self, values: V) -> Self
+    where
+        V: Into<Row<'a>>,
+    {
+        self.insertion = self.insertion.values(values);
+        self
+    }
+}
+
+impl<'a, DB> InsertingExecution<DB, SingleRowInsert<'a>> {
+    pub fn value<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: Into<Column<'a>>,
+        V: Into<Expression<'a>>,
+    {
+        self.insertion = self.insertion.value(key, val);
+        self
+    }
+}
+
+/*
+impl<'a, DB> InsertingExecution<DB, Insert<'a>> {
+    pub fn expression<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: Into<Column<'a>>,
+        V: Into<Expression<'a>>,
+    {
+        self.insertion = self.insertion.value(key, val);
+        self
+    }
+}
+*/
+
+impl<DB, I> InsertingExecution<DB, I> {
+    pub async fn conn<'a, C>(self, conn: C) -> crate::Result<DB::QueryResult>
+    where
+        C: Executioner<'a, DB>,
+        DB: sqlx::Database + for <'v> HasVisitor<'v>,
+        I: for<'i> Into<Insert<'i>> + Clone + Send,
+    {
+        conn.insert(self).await
+    }
+}
+
+impl<'insert, DB> From<Insert<'insert>> for InsertingExecution<DB, Insert<'insert>> {
+    fn from(ins: Insert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<'insert, DB> From<SingleRowInsert<'insert>> for InsertingExecution<DB, SingleRowInsert<'insert>> {
+    fn from(ins: SingleRowInsert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<'insert, DB> From<MultiRowInsert<'insert>> for InsertingExecution<DB, MultiRowInsert<'insert>> {
+    fn from(ins: MultiRowInsert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
+}
+
+#[async_trait]
+pub trait Executioner<'c, DB>: sqlx::Executor<'c, Database = DB> where DB: for<'v> HasVisitor<'v> + sqlx::Database {
+    async fn save<E: HasPrimaryKey + Send>(self, entity: &mut E) -> crate::Result<()>;
+    async fn insert<'query, I: Into<Insert<'query>> + Send, IE: Into<InsertingExecution<DB, I>> + Send>(self, insertion: IE) -> crate::Result<DB::QueryResult>;
+}
+
+macro_rules! impl_executioner_for {
+    (<$($lifetime: lifetime),*>, $executor: ty, $database: ty) => {
+        #[async_trait]
+        impl<$($lifetime),*> Executioner<'c, $database> for $executor {
+            async fn save<E: HasPrimaryKey + Send>(self, entity: &mut E) -> crate::Result<()> {
+                let mut request = entity.save::<$database>();
+                let (compiled, parameters) =
+                    <$database as HasVisitor>::Visitor::build(request.saving.clone())?;
+                // 'a for borrowed from self.compiled
+                // println!("compiled saving: {}", &compiled);
+                // println!("parameters ---> {:?}", parameters);
+                request.compiled.replace(compiled);
+                let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
+                for parameter in parameters {
+                    query = query.bind_value(parameter);
+                }
+                // println!("query ---> {:?}", query);
+                let _query_result = self.execute(query).await?;
+                Ok(())
+            }
+
+            async fn insert<'query, I, IE>(self, insertion: IE) -> crate::Result<<$database as sqlx::Database>::QueryResult>
+            where IE: Into<InsertingExecution<$database, I>> + Send,
+                  I: Into<Insert<'query>> + Send,
+            {
+                let mut request = insertion.into();
+                let (compiled, parameters) =
+                    <$database as HasVisitor>::Visitor::build(request.insertion.into())?;
+                request.compiled.replace(compiled);
+                let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
+                for parameter in parameters {
+                    query = query.bind_value(parameter);
+                }
+                // println!("query ---> {:?}", query);
+                let query_result = self.execute(query).await?;
+                Ok(query_result)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "mssql")]
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Mssql>, sqlx::Mssql);
+#[cfg(feature = "mysql")]
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::MySql>, sqlx::MySql);
+#[cfg(feature = "sqlite")]
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Sqlite>, sqlx::Sqlite);
+#[cfg(feature = "postgres")]
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Postgres>, sqlx::Postgres);
+#[cfg(feature = "postgres")]
+impl_executioner_for!(<'c>, &'c mut sqlx::postgres::PgListener, sqlx::Postgres);
+#[cfg(feature = "mssql")]
+impl_executioner_for!(<'c>, &'c mut sqlx::MssqlConnection, sqlx::Mssql);
+#[cfg(feature = "mysql")]
+impl_executioner_for!(<'c>, &'c mut sqlx::MySqlConnection, sqlx::MySql);
+#[cfg(feature = "sqlite")]
+impl_executioner_for!(<'c>, &'c mut sqlx::SqliteConnection, sqlx::Sqlite);
+#[cfg(feature = "postgres")]
+impl_executioner_for!(<'c>, &'c mut sqlx::PgConnection, sqlx::Postgres);
+#[cfg(feature = "mssql")]
+impl_executioner_for!(<'c, 't>, &'c mut sqlx::Transaction<'t, sqlx::Mssql>, sqlx::Mssql);
+#[cfg(feature = "mysql")]
+impl_executioner_for!(<'c, 't>, &'c mut sqlx::Transaction<'t, sqlx::MySql>, sqlx::MySql);
+#[cfg(feature = "sqlite")]
+impl_executioner_for!(<'c, 't>, &'c mut sqlx::Transaction<'t, sqlx::Sqlite>, sqlx::Sqlite);
+#[cfg(feature = "postgres")]
+impl_executioner_for!(<'c, 't>, &'c mut sqlx::Transaction<'t, sqlx::Postgres>, sqlx::Postgres);
+
+#[async_trait]
+impl<'p, DB> Executioner<'p, DB> for &'_ sqlx::Pool<DB> where
+    DB: sqlx::Database + for <'v> HasVisitor<'v>,
+    for<'c> &'c mut <DB as sqlx::Database>::Connection: Executioner<'c, DB>,
+{
+    async fn save<E: HasPrimaryKey + Send>(self, entity: &mut E) -> crate::Result<()> {
+        let pool = self.clone();
+        let mut conn = pool.acquire().await?;
+        conn.save(entity).await
+    }
+
+    async fn insert<'query, I, IE>(self, insertion: IE) -> crate::Result<<DB as sqlx::Database>::QueryResult>
+    where IE: Into<InsertingExecution<DB, I>> + Send,
+          I: Into<Insert<'query>> + Send,
+    {
+        let pool = self.clone();
+        let mut conn = pool.acquire().await?;
+        conn.insert(insertion).await
+    }       
 }

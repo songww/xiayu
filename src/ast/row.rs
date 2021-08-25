@@ -1,4 +1,4 @@
-#[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
 use super::compare::JsonType;
 use crate::ast::{Comparable, Compare, Expression};
 use std::borrow::Cow;
@@ -315,7 +315,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.compare_raw(raw_comparator, right)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -325,7 +325,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_contains(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_contains<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -335,7 +335,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_not_contains(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -345,7 +345,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_begins_with(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_begins_with<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -355,7 +355,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_not_begins_with(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -365,7 +365,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_ends_into(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_array_not_ends_into<T>(self, item: T) -> Compare<'a>
     where
         T: Into<Expression<'a>>,
@@ -375,7 +375,7 @@ impl<'a> Comparable<'a> for Row<'a> {
         value.json_array_not_ends_into(item)
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn json_type_equals<T>(self, json_type: T) -> Compare<'a>
     where
         T: Into<JsonType>,
