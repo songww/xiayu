@@ -46,9 +46,10 @@ pub trait Visitor<'a> {
     /// The point of entry for visiting query ASTs.
     ///
     /// ```
+    /// # use entities::Cat;
     /// # use xiayu::{prelude::*, visitors::*, error::Error};
-    /// # fn main() -> Result {
-    /// let query = Select::from_table("cats");
+    /// # fn main() -> xiayu::visitors::Result {
+    /// let query = Select::from_table(Cat::table());
     /// let (sqlite, _) = Sqlite::build(query.clone())?;
     /// let (psql, _) = Postgres::build(query.clone())?;
     /// let (mysql, _) = Mysql::build(query.clone())?;

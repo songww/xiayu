@@ -104,7 +104,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
             #[cfg(feature = "chrono")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
-            _ => todo!()
+            _ => todo!(),
         };
 
         match res {
@@ -840,68 +840,6 @@ mod tests {
         let (sql, _) = Sqlite::build(query).unwrap();
         assert_eq!(expected_sql, sql);
     }
-
-    /*
-    #[cfg(feature = "sqlite")]
-    fn sqlite_harness() -> ::rusqlite::Connection {
-        let conn = ::rusqlite::Connection::open_in_memory().unwrap();
-
-        conn.execute(
-            "CREATE TABLE users (id, name TEXT, age REAL, nice INTEGER)",
-            [],
-        )
-        .unwrap();
-
-        let insert = Insert::single_into("users")
-            .value("id", 1)
-            .value("name", "Alice")
-            .value("age", 42.69)
-            .value("nice", true);
-
-        let (sql, params) = Sqlite::build(insert).unwrap();
-
-        conn.execute(&sql, rusqlite::params_from_iter(params.iter()))
-            .unwrap();
-        conn
-    }
-
-    #[test]
-    #[cfg(feature = "sqlite")]
-    fn bind_test_1() {
-        let conn = sqlite_harness();
-
-        let conditions = "name"
-            .equals("Alice")
-            .and("age".less_than(100.0))
-            .and("nice".equals(1));
-        let query = Select::from_table("users").so_that(conditions);
-        let (sql_str, params) = Sqlite::build(query).unwrap();
-
-        #[derive(Debug)]
-        struct Person {
-            name: String,
-            age: f64,
-            nice: i32,
-        }
-
-        let mut stmt = conn.prepare(&sql_str).unwrap();
-        let mut person_iter = stmt
-            .query_map(rusqlite::params_from_iter(params.iter()), |row| {
-                Ok(Person {
-                    name: row.get(1).unwrap(),
-                    age: row.get(2).unwrap(),
-                    nice: row.get(3).unwrap(),
-                })
-            })
-            .unwrap();
-
-        let person: Person = person_iter.nth(0).unwrap().unwrap();
-
-        assert_eq!("Alice", person.name);
-        assert_eq!(42.69, person.age);
-        assert_eq!(1, person.nice);
-    }
-    */
 
     #[test]
     fn test_raw_null() {

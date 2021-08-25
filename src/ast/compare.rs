@@ -267,7 +267,7 @@ pub trait Comparable<'a> {
     ///
     /// ```rust
     /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// # fn main() -> Result<()> {
     /// #[derive(Entity)]
     /// struct User {
     ///   foo: String,
@@ -820,13 +820,9 @@ pub trait Comparable<'a> {
     /// Tests if a full-text search matches a certain query. Use it in combination with the `text_search()` function
     ///
     /// ```rust
-    /// # use xiaye::{prelude::*, visitors::{Visitor, Postgres}};
+    /// # use entities::*;
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// #[derive(Entity)]
-    /// struct Recipe {
-    ///   name: String,
-    ///   ingredients: String,
-    /// }
     /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
     /// let query = Select::from_table(Recipe::table()).so_that(search.matches("chicken"));
     /// let (sql, params) = Postgres::build(query)?;
@@ -848,13 +844,9 @@ pub trait Comparable<'a> {
     /// Tests if a full-text search does not match a certain query. Use it in combination with the `text_search()` function
     ///
     /// ```rust
+    /// # use entities::*;
     /// # use xiayu::{prelude::*, visitors::{Visitor, Postgres}};
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// #[derive(Entity)]
-    /// struct Recipe {
-    ///   name: String,
-    ///   ingredients: String,
-    /// }
     /// let search: Expression = text_search(&[Recipe::name, Recipe::ingredients]).into();
     /// let query = Select::from_table(Recipe::table()).so_that(search.not_matches("chicken"));
     /// let (sql, params) = Postgres::build(query)?;
@@ -877,7 +869,7 @@ pub trait Comparable<'a> {
     ///
     /// ```rust
     /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
-    /// # fn main() -> Result<(), xiayu::error::Error> {
+    /// # fn main() -> Result<()> {
     /// let query = Select::from_table("users").so_that("foo".compare_raw("ILIKE", "%bar%"));
     /// let (sql, params) = Sqlite::build(query)?;
     ///

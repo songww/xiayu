@@ -28,7 +28,7 @@ pub mod prelude {
     use sqlx::Database;
     use sqlx::Executor;
 
-    pub use xiayu_derive::Entity;
+    pub use xiayu_derive::*;
 
     pub use crate::ast::*;
     pub use crate::databases::{
