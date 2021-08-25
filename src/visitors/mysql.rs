@@ -166,11 +166,15 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             Value::Numeric(r) => r.map(|r| self.write(r)),
             #[cfg(feature = "json")]
             Value::Json(j) => match j {
-                Some(ref j) => {
-                    let s = serde_json::to_string(&j)?;
+                crate::ast::Json::JsonValue(Some(v)) => {
+                    let s = serde_json::to_string(&v)?;
                     Some(self.write(format!("CONVERT('{}', JSON)", s)))
                 }
-                None => None,
+                crate::ast::Json::JsonRawValue(Some(v)) => {
+                    let s = serde_json::to_string(*v)?;
+                    Some(self.write(format!("CONVERT('{}', JSON)", s)))
+                }
+                _ => None,
             },
             #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
@@ -183,6 +187,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             #[cfg(feature = "chrono")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
+            _ => todo!(),
         };
 
         match res {

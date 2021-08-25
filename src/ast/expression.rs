@@ -59,7 +59,7 @@ impl<'a> Expression<'a> {
     pub(crate) fn into_json_value(self) -> Option<serde_json::Value> {
         match self.kind {
             #[cfg(feature = "json")]
-            ExpressionKind::Parameterized(Value::Json(json_val)) => json_val,
+            ExpressionKind::Parameterized(Value::Json(Json::JsonValue(json_val))) => json_val,
             #[cfg(feature = "json")]
             ExpressionKind::Value(expr) => expr.into_json_value(),
             _ => None,

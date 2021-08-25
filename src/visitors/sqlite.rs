@@ -81,11 +81,15 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
             }
             #[cfg(feature = "json")]
             Value::Json(j) => match j {
-                Some(ref j) => {
-                    let s = serde_json::to_string(j)?;
+                crate::ast::Json::JsonValue(Some(ref v)) => {
+                    let s = serde_json::to_string(&v)?;
                     Some(self.write(format!("'{}'", s)))
                 }
-                None => None,
+                crate::ast::Json::JsonRawValue(Some(ref v)) => {
+                    let s = serde_json::to_string(&**v)?;
+                    Some(self.write(format!("'{}'", s)))
+                }
+                _ => None,
             },
             #[cfg(feature = "bigdecimal")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
@@ -100,6 +104,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
             #[cfg(feature = "chrono")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
+            _ => todo!()
         };
 
         match res {

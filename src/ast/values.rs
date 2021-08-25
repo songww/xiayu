@@ -61,9 +61,63 @@ trait PgCompatibleType:
 pub enum Json<'a> {
     // #[cfg(feature = "postgres")]
     // #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
-    // Json(sqlx::types::Json<Box<Value<'a>>>),
-    JsonValue(JsonValue),
-    JsonRawValue(&'a serde_json::value::RawValue),
+    // Json(Option<sqlx::types::Json<Box<Value<'a>>>>),
+    JsonValue(Option<JsonValue>),
+    JsonRawValue(Option<JsonRawValue<'a>>),
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<JsonValue> for Json<'a> {
+    fn from(v: JsonValue) -> Self {
+        Json::JsonValue(Some(v))
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<Option<JsonValue>> for Json<'a> {
+    fn from(v: Option<JsonValue>) -> Self {
+        Json::JsonValue(v)
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<Option<JsonRawValue<'a>>> for Json<'a> {
+    fn from(v: Option<JsonRawValue<'a>>) -> Self {
+        Json::JsonRawValue(v)
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<JsonRawValue<'a>> for Json<'a> {
+    fn from(v: JsonRawValue<'a>) -> Self {
+        Json::JsonRawValue(Some(v))
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<&'a serde_json::value::RawValue> for JsonRawValue<'a> {
+    fn from(v: &'a serde_json::value::RawValue) -> Self {
+        JsonRawValue(v)
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> Json<'a> {
+    pub const fn is_none(&self) -> bool {
+        match self {
+            Json::JsonValue(v) => v.is_none(),
+            Json::JsonRawValue(v) => v.is_none(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, AsRef, Deref)]
+pub struct JsonRawValue<'a>(&'a serde_json::value::RawValue);
+
+impl<'a> PartialEq for JsonRawValue<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.get() == other.0.get()
+    }
 }
 
 /// A value we must parameterize for the prepared statement. Null values should be
@@ -118,7 +172,7 @@ pub enum Value<'a> {
     #[cfg(feature = "json")]
     #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
     /// A JSON value.
-    Json(Option<Json<'a>>),
+    Json(Json<'a>),
     #[cfg(feature = "uuid")]
     #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
     /// An UUID value.
@@ -227,7 +281,10 @@ impl<'a> fmt::Display for Value<'a> {
             #[cfg(feature = "bigdecimal")]
             Value::Numeric(val) => val.as_ref().map(|v| write!(f, "{}", v)),
             #[cfg(feature = "json")]
-            Value::Json(val) => val.as_ref().map(|v| write!(f, "{:?}", v)),
+            Value::Json(val) => match val {
+                Json::JsonValue(jv) => jv.as_ref().map(|v| write!(f, "{:?}", v)),
+                Json::JsonRawValue(jv) => jv.as_ref().map(|v| write!(f, "{:?}", v)),
+            },
             #[cfg(feature = "uuid")]
             Value::Uuid(val) => val.map(|v| write!(f, "{}", v)),
             #[cfg(feature = "chrono")]
@@ -280,7 +337,10 @@ impl<'a> From<Value<'a>> for serde_json::Value {
             #[cfg(feature = "bigdecimal")]
             Value::Numeric(d) => d.map(|d| serde_json::to_value(d.to_f64().unwrap()).unwrap()),
             #[cfg(feature = "json")]
-            Value::Json(v) => v,
+            Value::Json(v) => match v {
+                Json::JsonValue(v) => v,
+                Json::JsonRawValue(v) => v.and_then(|v| serde_json::to_value(*v).ok()),
+            },
             #[cfg(feature = "uuid")]
             Value::Uuid(u) => u.map(|u| serde_json::Value::String(u.to_hyphenated().to_string())),
             #[cfg(feature = "chrono")]
@@ -405,8 +465,8 @@ impl<'a> Value<'a> {
     /// Creates a new JSON value.
     #[cfg(feature = "json")]
     #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-    pub const fn json(value: serde_json::Value) -> Self {
-        Value::Json(Some(Json::JsonValue(value)))
+    pub const fn json(value: Json<'a>) -> Self {
+        Value::Json(value)
     }
 
     /// Creates a new XML value.
@@ -675,7 +735,7 @@ impl<'a> Value<'a> {
     #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
     pub const fn as_json(&self) -> Option<&serde_json::Value> {
         match self {
-            Value::Json(Some(j)) => Some(j),
+            Value::Json(Json::JsonValue(Some(j))) => Some(j),
             _ => None,
         }
     }
@@ -685,7 +745,8 @@ impl<'a> Value<'a> {
     #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
     pub fn into_json(self) -> Option<serde_json::Value> {
         match self {
-            Value::Json(Some(Json::JsonValue(j))) => Some(j),
+            Value::Json(Json::JsonValue(Some(j))) => Some(j),
+            Value::Json(Json::JsonRawValue(Some(j))) => serde_json::to_value(*j).ok(),
             _ => None,
         }
     }
@@ -732,7 +793,10 @@ value!(val: chrono::NaiveDate, Date, val);
 value!(val: BigDecimal, Numeric, val);
 #[cfg(feature = "json")]
 #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-value!(val: JsonValue, Json, val);
+impl_value_from_json!(val: JsonValue, JsonValue, val);
+#[cfg(feature = "json")]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+impl_value_from_json!(val: JsonRawValue<'a>, JsonRawValue, val);
 #[cfg(feature = "uuid")]
 #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
 value!(val: Uuid, Uuid, val);

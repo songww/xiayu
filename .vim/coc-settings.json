@@ -34,9 +34,30 @@
   "rust-analyzer.updates.channel": "nightly",
   "rust-analyzer.cargo.autoreload": true,
   "rust-analyzer.cargo.features": [
-    "doc"
+    "doc",
+    "mssql",
+    "mysql",
+    "sqlite",
+    "postgres",
+    "json",
+    "uuid",
+    "chrono",
+    "bigdecimal"
   ],
   "rust-analyzer.cargo.allFeatures": true,
+  "rust-analyzer.checkOnSave.features": [
+    "doc",
+    "mssql",
+    "mysql",
+    "sqlite",
+    "postgres",
+    "json",
+    "uuid",
+    "chrono",
+    "bigdecimal"
+  ],
+  "rust-analyzer.cargo.noDefaultFeatures": false,
+  "rust-analyzer.checkOnSave.noDefaultFeatures": false,
   "python.pythonPath": "python",
   "python.formatting.provider": "black",
   "python.formatting.blackArgs": [

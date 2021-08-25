@@ -36,9 +36,8 @@ async-trait = "0.1.51"
 tokio = { version = "1.10.0", features = ["rt"] }
 
 [features]
-default = [ "postgres" ]
+default = [ "sqlite", "mysql" ]
 docs = [ "sqlx/runtime-tokio-rustls" ]
-any = [ "sqlx/any" ]
 mssql = [ "uuid", "chrono", "either", "sqlx/mssql", "indoc" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
@@ -50,7 +49,6 @@ decimal = [ "sqlx/decimal" ]
 bigdecimal = [ "num", "num-bigint", "sqlx/bigdecimal" ]
 
 all = [
-    "any",
     "mssql",
     "mysql",
     "sqlite",

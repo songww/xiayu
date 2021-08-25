@@ -118,9 +118,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                 })
             }),
             #[cfg(feature = "json")]
-            Value::Json(j) => {
-                j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
-            }
+            Value::Json(j) => match j {
+                crate::ast::Json::JsonRawValue(v) => {
+                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(*j).unwrap())))
+                }
+                crate::ast::Json::JsonValue(v) => {
+                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
+                }
+            },
             #[cfg(feature = "bigdecimal")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
             #[cfg(feature = "uuid")]

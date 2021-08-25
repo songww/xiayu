@@ -71,12 +71,15 @@ macro_rules! bind_value {
                 //     //
                 // }
                 Json::JsonValue(value) => $query.bind(value),
-                Json::JsonRawValue(raw_value) => $query.bind(raw_value),
+                Json::JsonRawValue(raw_value) => $query.bind(raw_value.map(|v|sqlx::types::Json(*v)))
             },
             #[cfg(all(feature = "uuid", feature = "postgres"))]
             Value::Uuid(uuid) => $query.bind(uuid),
+            #[cfg(feature = "postgres")]
             Value::PgInterval(interval) => $query.bind(interval),
+            // #[cfg(feature = "postgres")]
             // Value::PgRange(range) => $query.bind(range),
+            #[cfg(feature = "postgres")]
             Value::PgMoney(money) => $query.bind(money),
             #[cfg(all(feature = "bigdecimal", feature = "postgres"))]
             Value::BigDecimal(bigdecimal) => $query.bind(bigdecimal),
@@ -151,14 +154,14 @@ impl<'a, O> Binder<'a, sqlx::Mssql> for sqlx::query::QueryAs<'a, sqlx::Mssql, O,
 }
 
 #[cfg(feature = "sqlite")]
-impl<'a> Binder<'a, sqlx::Sqlite> for sqlx::query::Query<'a, sqlx::Sqlite, sqlx::postgres::SqliteArguments> {
+impl<'a> Binder<'a, sqlx::Sqlite> for sqlx::query::Query<'a, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'a>> {
     fn bind_value(self, value: Value<'a>) -> Self {
         bind_value!(self, value)
     }
 }
 
 #[cfg(feature = "sqlite")]
-impl<'a, O> Binder<'a, sqlx::Sqlite> for sqlx::query::QueryAs<'a, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments> {
+impl<'a, O> Binder<'a, sqlx::Sqlite> for sqlx::query::QueryAs<'a, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'a>> {
     fn bind_value(self, value: Value<'a>) -> Self {
         bind_value!(self, value)
     }
@@ -322,11 +325,13 @@ macro_rules! impl_executioner_for {
                     <$database as HasVisitor>::Visitor::build(request.saving.clone())?;
                 // 'a for borrowed from self.compiled
                 println!("compiled saving: {}", &compiled);
+                println!("parameters ---> {:?}", parameters);
                 request.compiled.replace(compiled);
                 let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
                 for parameter in parameters {
                     query = query.bind_value(parameter);
                 }
+                // println!("query ---> {:?}", query);
                 let _query_result = self.execute(query).await?;
                 Ok(())
             }
@@ -335,11 +340,11 @@ macro_rules! impl_executioner_for {
 }
 
 #[cfg(feature = "mssql")]
-impl_executioner_for!(<'c>, sqlx::pool::PoolConnection<sqlx::Mssql>, sqlx::Mssql);
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Mssql>, sqlx::Mssql);
 #[cfg(feature = "mysql")]
-impl_executioner_for!(<'c>, sqlx::pool::PoolConnection<sqlx::MySql>, sqlx::MySql);
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::MySql>, sqlx::MySql);
 #[cfg(feature = "sqlite")]
-impl_executioner_for!(<'c>, sqlx::pool::PoolConnection<sqlx::Sqlite>, sqlx::Sqlite);
+impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Sqlite>, sqlx::Sqlite);
 #[cfg(feature = "postgres")]
 impl_executioner_for!(<'c>, &'c mut sqlx::pool::PoolConnection<sqlx::Postgres>, sqlx::Postgres);
 #[cfg(feature = "postgres")]
@@ -348,10 +353,10 @@ impl_executioner_for!(<'c>, &'c mut sqlx::postgres::PgListener, sqlx::Postgres);
 impl_executioner_for!(<'c>, &'c mut sqlx::MssqlConnection, sqlx::Mssql);
 #[cfg(feature = "mysql")]
 impl_executioner_for!(<'c>, &'c mut sqlx::MySqlConnection, sqlx::MySql);
+#[cfg(feature = "sqlite")]
+impl_executioner_for!(<'c>, &'c mut sqlx::SqliteConnection, sqlx::Sqlite);
 #[cfg(feature = "postgres")]
 impl_executioner_for!(<'c>, &'c mut sqlx::PgConnection, sqlx::Postgres);
-#[cfg(feature = "sqlite")]
-impl_executioner_for!(<'c, 't>, &'t mut sqlx::SqliteConnection, sqlx::Sqlite);
 #[cfg(feature = "mssql")]
 impl_executioner_for!(<'c, 't>, &'c mut sqlx::Transaction<'t, sqlx::Mssql>, sqlx::Mssql);
 #[cfg(feature = "mysql")]

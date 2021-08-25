@@ -10,6 +10,8 @@
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
 #[macro_use]
+extern crate derive_more;
+#[macro_use]
 mod macros;
 #[macro_use]
 pub mod visitors;
@@ -25,12 +27,12 @@ pub mod prelude {
 
     use sqlx::Database;
     use sqlx::Executor;
+
     pub use xiayu_derive::Entity;
 
-    pub use crate::databases::{DeleteRequest, FetchRequest, SaveRequest};
-
-    pub use super::ast::*;
-    pub use super::Result;
+    pub use crate::ast::*;
+    pub use crate::databases::{DeleteRequest, Executioner, FetchRequest, SaveRequest};
+    pub use crate::Result;
 
     #[derive(Clone, Debug)]
     pub struct DefaultValue<T>(fn() -> T);
