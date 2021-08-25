@@ -1,3 +1,4 @@
+use std::default;
 use std::marker::{PhantomData};
 
 #[cfg(feature = "chrono")]
@@ -8,7 +9,7 @@ use async_trait::async_trait;
 use crate::ast::{Value};
 #[cfg(feature = "json")]
 use crate::ast::Json;
-use crate::prelude::{Delete, Entity, HasPrimaryKey, Select, Update};
+use crate::prelude::{Column, Delete, Entity, HasPrimaryKey, Insert, MultiRowInsert, SingleRowInsert, Row, OnConflict, Select, Update, Expression};
 use crate::visitors::Visitor;
 
 pub trait HasVisitor<'a> {
@@ -169,13 +170,13 @@ impl<'a, O> Binder<'a, sqlx::Sqlite> for sqlx::query::QueryAs<'a, sqlx::Sqlite, 
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "query must be executed to affect database"]
-pub struct FetchRequest<T, DB: Database> {
+pub struct SelectingExecution<T, DB: Database> {
     select: Select<'static>,
     compiled: Option<String>,
     _marker: PhantomData<(T, DB)>,
 }
 
-impl<DB: Database, T: Send> FetchRequest<T, DB> {
+impl<DB: Database, T: Send> SelectingExecution<T, DB> {
     pub async fn conn<'a, C>(&'a mut self, conn: C) -> Result<T, crate::error::Error>
     where
         C: 'a + sqlx::Executor<'a, Database = DB>,
@@ -198,7 +199,7 @@ impl<DB: Database, T: Send> FetchRequest<T, DB> {
     }
 }
 
-impl<T, DB> From<crate::ast::Select<'static>> for FetchRequest<T, DB>
+impl<T, DB> From<crate::ast::Select<'static>> for SelectingExecution<T, DB>
 where
     T: for<'r> FromRow<'r, <DB as Database>::Row>,
     DB: sqlx::Database
@@ -214,14 +215,14 @@ where
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "delete must be executed to affect database"]
-pub struct DeleteRequest<'a, E, DB> {
+pub struct DeletingExecution<'a, E, DB> {
     delete: Delete<'static>,
     compiled: Option<String>,
     entity: &'a mut E,
     _marker: PhantomData<DB>,
 }
 
-impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
+impl<'e, E: HasPrimaryKey, DB: Database> DeletingExecution<'e, E, DB> {
     pub fn new<'a>(delete: crate::ast::Delete<'static>, entity: &'e mut E) -> Self
     {
         Self {
@@ -259,14 +260,14 @@ impl<'e, E: HasPrimaryKey, DB: Database> DeleteRequest<'e, E, DB> {
 
 /// fetch entity from table. Returned by [`get`][crate::prelude::HasPrimaryKey::get].
 #[must_use = "save must be executed to affect database"]
-pub struct SaveRequest<'a, E, DB> {
+pub struct SavingExecution<'a, E, DB> {
     saving: Update<'static>,
     compiled: Option<String>,
     entity: &'a mut E,
     _marker: PhantomData<DB>,
 }
 
-impl<'e, E: HasPrimaryKey, DB: Database> SaveRequest<'e, E, DB> {
+impl<'e, E: HasPrimaryKey, DB: Database> SavingExecution<'e, E, DB> {
     pub fn new<'a>(saving: Update<'static>, entity: &'e mut E) -> Self
     {
         Self {
@@ -302,17 +303,101 @@ impl<'e, E: HasPrimaryKey, DB: Database> SaveRequest<'e, E, DB> {
     }
 }
 
-
 /// create table. Returned by [`get`][crate::prelude::entity::create_table].
-#[must_use = "delete must be executed to affect database"]
-pub struct CreateTable<DB> {
+#[must_use = "create table must be executed to affect database"]
+pub struct CreateTableExecution<DB> {
     _marker: PhantomData<DB>,
     compiled: Option<String>,
+}
+
+/// create table. Returned by [`get`][crate::prelude::entity::create].
+#[must_use = "insert must be executed to affect database"]
+#[derive(Clone, Debug)]
+pub struct InsertingExecution<DB, I> {
+    _marker: PhantomData<DB>,
+    insertion: I,
+    compiled: Option<String>,
+}
+
+impl<'a, DB> InsertingExecution<DB, MultiRowInsert<'a>> {
+    pub fn values<V>(mut self, values: V) -> Self
+    where
+        V: Into<Row<'a>>,
+    {
+        self.insertion = self.insertion.values(values);
+        self
+    }
+}
+
+impl<'a, DB> InsertingExecution<DB, SingleRowInsert<'a>> {
+    pub fn value<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: Into<Column<'a>>,
+        V: Into<Expression<'a>>,
+    {
+        self.insertion = self.insertion.value(key, val);
+        self
+    }
+}
+
+/*
+impl<'a, DB> InsertingExecution<DB, Insert<'a>> {
+    pub fn expression<K, V>(mut self, key: K, val: V) -> Self
+    where
+        K: Into<Column<'a>>,
+        V: Into<Expression<'a>>,
+    {
+        self.insertion = self.insertion.value(key, val);
+        self
+    }
+}
+*/
+
+impl<DB, I> InsertingExecution<DB, I> {
+    pub async fn conn<'a, C>(self, conn: C) -> crate::Result<DB::QueryResult>
+    where
+        C: Executioner<'a, DB>,
+        DB: sqlx::Database + for <'v> HasVisitor<'v>,
+        I: for<'i> Into<Insert<'i>> + Clone + Send,
+    {
+        conn.insert(self).await
+    }
+}
+
+impl<'insert, DB> From<Insert<'insert>> for InsertingExecution<DB, Insert<'insert>> {
+    fn from(ins: Insert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<'insert, DB> From<SingleRowInsert<'insert>> for InsertingExecution<DB, SingleRowInsert<'insert>> {
+    fn from(ins: SingleRowInsert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<'insert, DB> From<MultiRowInsert<'insert>> for InsertingExecution<DB, MultiRowInsert<'insert>> {
+    fn from(ins: MultiRowInsert<'insert>) -> Self {
+        Self {
+            insertion: ins,
+            compiled: None,
+            _marker: PhantomData
+        }
+    }
 }
 
 #[async_trait]
 pub trait Executioner<'c, DB>: sqlx::Executor<'c, Database = DB> where DB: for<'v> HasVisitor<'v> + sqlx::Database {
     async fn save<E: HasPrimaryKey + Send>(self, entity: &mut E) -> crate::Result<()>;
+    async fn insert<'query, I: Into<Insert<'query>> + Send, IE: Into<InsertingExecution<DB, I>> + Send>(self, insertion: IE) -> crate::Result<DB::QueryResult>;
 }
 
 macro_rules! impl_executioner_for {
@@ -334,6 +419,23 @@ macro_rules! impl_executioner_for {
                 // println!("query ---> {:?}", query);
                 let _query_result = self.execute(query).await?;
                 Ok(())
+            }
+
+            async fn insert<'query, I, IE>(self, insertion: IE) -> crate::Result<<$database as sqlx::Database>::QueryResult>
+            where IE: Into<InsertingExecution<$database, I>> + Send,
+                  I: Into<Insert<'query>> + Send,
+            {
+                let mut request = insertion.into();
+                let (compiled, parameters) =
+                    <$database as HasVisitor>::Visitor::build(request.insertion.into())?;
+                request.compiled.replace(compiled);
+                let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
+                for parameter in parameters {
+                    query = query.bind_value(parameter);
+                }
+                // println!("query ---> {:?}", query);
+                let query_result = self.execute(query).await?;
+                Ok(query_result)
             }
         }
     };
@@ -376,4 +478,13 @@ impl<'p, DB> Executioner<'p, DB> for &'_ sqlx::Pool<DB> where
         let mut conn = pool.acquire().await?;
         conn.save(entity).await
     }
+
+    async fn insert<'query, I, IE>(self, insertion: IE) -> crate::Result<<DB as sqlx::Database>::QueryResult>
+    where IE: Into<InsertingExecution<DB, I>> + Send,
+          I: Into<Insert<'query>> + Send,
+    {
+        let pool = self.clone();
+        let mut conn = pool.acquire().await?;
+        conn.insert(insertion).await
+    }       
 }
