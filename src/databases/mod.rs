@@ -324,8 +324,8 @@ macro_rules! impl_executioner_for {
                 let (compiled, parameters) =
                     <$database as HasVisitor>::Visitor::build(request.saving.clone())?;
                 // 'a for borrowed from self.compiled
-                println!("compiled saving: {}", &compiled);
-                println!("parameters ---> {:?}", parameters);
+                // println!("compiled saving: {}", &compiled);
+                // println!("parameters ---> {:?}", parameters);
                 request.compiled.replace(compiled);
                 let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
                 for parameter in parameters {
