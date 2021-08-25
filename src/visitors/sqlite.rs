@@ -79,7 +79,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
 
                 return Err(builder.build());
             }
-            #[cfg(feature = "json-type")]
+            #[cfg(feature = "json")]
             Value::Json(j) => match j {
                 Some(ref j) => {
                     let s = serde_json::to_string(j)?;
@@ -87,17 +87,17 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
                 }
                 None => None,
             },
-            #[cfg(feature = "bigdecimal-type")]
+            #[cfg(feature = "bigdecimal")]
             Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid-type")]
+            #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono-type")]
+            #[cfg(feature = "chrono")]
             Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono-type")]
+            #[cfg(feature = "chrono")]
             Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono-type")]
+            #[cfg(feature = "chrono")]
             Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
             Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
         };
@@ -246,12 +246,12 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         })
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, _json_extract: JsonExtract<'a>) -> visitors::Result {
         unimplemented!("JSON filtering is not yet supported on SQLite")
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         _left: Expression<'a>,
@@ -261,7 +261,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         unimplemented!("JSON filtering is not yet supported on SQLite")
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         _left: Expression<'a>,
@@ -271,7 +271,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         unimplemented!("JSON filtering is not yet supported on SQLite")
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         _left: Expression<'a>,
@@ -281,7 +281,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         unimplemented!("JSON filtering is not yet supported on SQLite")
     }
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(
         &mut self,
         _left: Expression<'a>,
@@ -294,7 +294,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
     fn visit_text_search(
         &mut self,
         _text_search: crate::prelude::TextSearch<'a>,
-    ) -> visitor::Result {
+    ) -> visitors::Result {
         unimplemented!("Full-text search is not yet supported on SQLite")
     }
 
@@ -304,7 +304,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
         _left: Expression<'a>,
         _right: std::borrow::Cow<'a, str>,
         _not: bool,
-    ) -> visitor::Result {
+    ) -> visitors::Result {
         unimplemented!("Full-text search is not yet supported on SQLite")
     }
 }
@@ -955,7 +955,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "json-type")]
+    #[cfg(feature = "json")]
     fn test_raw_json() {
         let (sql, params) =
             Sqlite::build(Select::default().value(serde_json::json!({ "foo": "bar" }).raw()))
@@ -965,7 +965,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "uuid-type")]
+    #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
         let uuid = uuid::Uuid::new_v4();
         let (sql, params) = Sqlite::build(Select::default().value(uuid.raw())).unwrap();
@@ -979,7 +979,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "chrono-type")]
+    #[cfg(feature = "chrono")]
     fn test_raw_datetime() {
         let dt = chrono::Utc::now();
         let (sql, params) = Sqlite::build(Select::default().value(dt.raw())).unwrap();

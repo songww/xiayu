@@ -106,10 +106,10 @@ pub trait Visitor<'a> {
     /// Visit a non-parameterized value.
     fn visit_raw_value(&mut self, value: Value<'a>) -> Result;
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_extract(&mut self, json_extract: JsonExtract<'a>) -> Result;
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_contains(
         &mut self,
         left: Expression<'a>,
@@ -117,7 +117,7 @@ pub trait Visitor<'a> {
         not: bool,
     ) -> Result;
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_begins_with(
         &mut self,
         left: Expression<'a>,
@@ -125,7 +125,7 @@ pub trait Visitor<'a> {
         not: bool,
     ) -> Result;
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_array_ends_into(
         &mut self,
         left: Expression<'a>,
@@ -133,7 +133,7 @@ pub trait Visitor<'a> {
         not: bool,
     ) -> Result;
 
-    #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+    #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
     fn visit_json_type_equals(&mut self, left: Expression<'a>, json_type: JsonType) -> Result;
 
     #[cfg(feature = "postgres")]
@@ -913,7 +913,7 @@ pub trait Visitor<'a> {
                 self.write(" ")?;
                 self.visit_expression(*right)
             }
-            #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+            #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
             Compare::JsonCompare(json_compare) => match json_compare {
                 JsonCompare::ArrayContains(left, right) => {
                     self.visit_json_array_contains(*left, *right, false)
@@ -1025,7 +1025,7 @@ pub trait Visitor<'a> {
             FunctionType::AggregateToString(agg) => {
                 self.visit_aggregate_to_string(agg.value.as_ref().clone())?;
             }
-            #[cfg(all(feature = "json-type", feature = "postgres"))]
+            #[cfg(all(feature = "json", feature = "postgres"))]
             FunctionType::RowToJson(row_to_json) => {
                 self.write("ROW_TO_JSON")?;
                 self.surround_with("(", ")", |ref mut s| s.visit_table(row_to_json.expr, false))?
@@ -1057,7 +1057,7 @@ pub trait Visitor<'a> {
                 self.write("COALESCE")?;
                 self.surround_with("(", ")", |s| s.visit_columns(coalesce.exprs))?;
             }
-            #[cfg(all(feature = "json-type", any(feature = "postgres", feature = "mysql")))]
+            #[cfg(all(feature = "json", any(feature = "postgres", feature = "mysql")))]
             FunctionType::JsonExtract(json_extract) => {
                 self.visit_json_extract(json_extract)?;
             }

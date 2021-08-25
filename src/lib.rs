@@ -1,3 +1,4 @@
+#![feature(const_panic)]
 #![cfg_attr(feature = "docs", feature(doc_cfg))]
 
 #[cfg(not(any(
@@ -8,9 +9,6 @@
 )))]
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
 
-#[cfg(feature = "bigdecimal-type")]
-extern crate bigdecimal as bigdecimal;
-
 #[macro_use]
 mod macros;
 #[macro_use]
@@ -18,11 +16,6 @@ pub mod visitors;
 pub mod ast;
 pub mod databases;
 pub mod error;
-/*
-#[cfg(feature = "serde")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json-type")))]
-pub mod serde;
-*/
 
 pub type Result<T> = std::result::Result<T, error::Error>;
 

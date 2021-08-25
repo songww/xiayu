@@ -61,7 +61,7 @@ fn entity_definitions() {
             let mut entity = AnotherEntity::get(2).conn(&mut conn).await?;
             entity.textual = "123".to_string();
             println!("--------> saving.");
-            entity.save().conn(&mut conn).await?;
+            conn.save(entity).await?;
             println!("--------> saved.");
             let entity = AnotherEntity::get(2).conn(&mut conn).await?;
             println!("--------> fetch.");
