@@ -34,10 +34,7 @@
   "rust-analyzer.updates.channel": "nightly",
   "rust-analyzer.cargo.autoreload": true,
   "rust-analyzer.cargo.features": [
-    "doc",
-    "mssql",
-    "mysql",
-    "sqlite",
+    "docs",
     "postgres",
     "json",
     "uuid",

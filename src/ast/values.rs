@@ -1,17 +1,17 @@
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
 use std::convert::TryFrom;
-use std::fmt;
+use std::{fmt, option};
 
-#[cfg(feature = "bigdecimal")]
+#[cfg(bigdecimal)]
 use num::{FromPrimitive, ToPrimitive};
-#[cfg(feature = "json")]
+#[cfg(json)]
 use serde_json::{Number, Value as JsonValue};
-#[cfg(feature = "chrono")]
+#[cfg(chrono)]
 use sqlx::types::chrono::{self, DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-#[cfg(feature = "bigdecimal")]
+#[cfg(bigdecimal)]
 use sqlx::types::BigDecimal;
-#[cfg(feature = "uuid")]
+#[cfg(uuid)]
 use sqlx::types::Uuid;
 
 use crate::ast::*;
@@ -55,6 +55,7 @@ trait PgCompatibleType:
 //     }
 // }
 
+/*
 #[cfg(feature = "json")]
 #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
 #[derive(Debug, Clone, PartialEq)]
@@ -62,72 +63,102 @@ pub enum Json<'a> {
     // #[cfg(feature = "postgres")]
     // #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
     // Json(Option<sqlx::types::Json<Box<Value<'a>>>>),
+    #[cfg(any(feature = "mysql", feature = "postgres"))]
     JsonValue(Option<JsonValue>),
+    #[cfg(feature = "postgres")]
     JsonRawValue(Option<JsonRawValue<'a>>),
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
+)]
 impl<'a> From<JsonValue> for Json<'a> {
     fn from(v: JsonValue) -> Self {
         Json::JsonValue(Some(v))
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
+)]
 impl<'a> From<Option<JsonValue>> for Json<'a> {
     fn from(v: Option<JsonValue>) -> Self {
         Json::JsonValue(v)
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", feature = "postgres")))
+)]
 impl<'a> From<Option<JsonRawValue<'a>>> for Json<'a> {
     fn from(v: Option<JsonRawValue<'a>>) -> Self {
         Json::JsonRawValue(v)
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", feature = "postgres")))
+)]
 impl<'a> From<JsonRawValue<'a>> for Json<'a> {
     fn from(v: JsonRawValue<'a>) -> Self {
         Json::JsonRawValue(Some(v))
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", feature = "postgres"))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", feature = "postgres")))
+)]
 impl<'a> From<&'a serde_json::value::RawValue> for JsonRawValue<'a> {
     fn from(v: &'a serde_json::value::RawValue) -> Self {
         JsonRawValue(v)
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
+#[cfg_attr(
+    feature = "docs",
+    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
+)]
 impl<'a> Json<'a> {
     pub const fn is_none(&self) -> bool {
         match self {
             Json::JsonValue(v) => v.is_none(),
+            #[cfg(feature = "postgres")]
             Json::JsonRawValue(v) => v.is_none(),
         }
     }
 }
 
+#[cfg(feature = "json")]
 #[derive(Debug, Clone, AsRef, Deref)]
 pub struct JsonRawValue<'a>(&'a serde_json::value::RawValue);
 
+#[cfg(feature = "json")]
 impl<'a> PartialEq for JsonRawValue<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.0.get() == other.0.get()
     }
 }
+*/
+
+#[cfg(json)]
+pub type Json = sqlx::types::Json<dyn serde::ser::Serialize>;
 
 /// A value we must parameterize for the prepared statement. Null values should be
 /// defined by their corresponding type variants with a `None` value for best
 /// compatibility.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a> {
-    /// 64-bit signed integer.
-    Integer(Option<i64>),
-
     I8(Option<i8>),
     I16(Option<i16>),
     I32(Option<i32>),
@@ -139,10 +170,34 @@ pub enum Value<'a> {
     /// String value.
     Text(Option<Cow<'a, str>>),
     /// Bytes value.
+    #[cfg(not_mssql)]
+    #[cfg_attr(docs, doc(cfg(not_mssql)))]
     Bytes(Option<Cow<'a, [u8]>>),
     /// Boolean value.
     Boolean(Option<bool>),
 
+    #[cfg(all(
+        any(feature = "mysql", feature = "sqlite"),
+        not(any(feature = "mssql", feature = "postgres"))
+    ))]
+    #[cfg_attr(
+        docs,
+        doc(cfg(all(
+            any(feature = "mysql", feature = "sqlite"),
+            not(any(feature = "mssql", feature = "postgres"))
+        )))
+    )]
+    U8(Option<u8>),
+    #[cfg(mysql_or_sqlite)]
+    #[cfg_attr(feature = "docs", doc(cfg(mysql_or_sqlite)))]
+    U16(Option<u16>),
+    #[cfg(not_mssql)]
+    #[cfg_attr(feature = "docs", doc(cfg(not_mssql)))]
+    U32(Option<u32>),
+    #[cfg(only_mysql)]
+    #[cfg_attr(feature = "docs", doc(cfg(only_mysql)))]
+    U64(Option<u64>),
+    /*
     /// Database enum value.
     Enum(Option<Cow<'a, str>>),
     /// A single character.
@@ -151,90 +206,73 @@ pub enum Value<'a> {
     /// An array value (PostgreSQL).
     Array(Option<Vec<Value<'a>>>),
     /// A numeric value.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
-    Numeric(Option<BigDecimal>),
     /// A XML value.
     Xml(Option<Cow<'a, str>>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    /// A datetime value.
-    DateTime(Option<DateTime<Utc>>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    /// A date value.
-    Date(Option<NaiveDate>),
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    /// A time value.
-    Time(Option<NaiveTime>),
-
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    */
+    #[cfg(json)]
+    #[cfg_attr(feature = "docs", doc(cfg(json)))]
     /// A JSON value.
-    Json(Json<'a>),
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    Json(Option<Json>),
+    #[cfg(uuid)]
+    #[cfg_attr(feature = "docs", doc(cfg(uuid)))]
     /// An UUID value.
     Uuid(Option<Uuid>),
 
-    #[cfg(feature = "postgres")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+    #[cfg(only_postgres)]
+    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
     /// INTERVAL
     PgInterval(Option<sqlx::postgres::types::PgInterval>),
     /*
-    #[cfg(feature = "postgres")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+    #[cfg(only_postgres)]
+    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
     /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
     PgRange(Option<sqlx::postgres::types::PgRange<Box<Value<'a>>>>),
     */
-    #[cfg(feature = "postgres")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
     /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
+    #[cfg(only_postgres)]
+    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
     PgMoney(Option<sqlx::postgres::types::PgMoney>),
 
     /// A numeric value.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+    #[cfg(bigdecimal)]
+    #[cfg_attr(feature = "docs", doc(cfg(bigdecimal)))]
     BigDecimal(Option<sqlx::types::BigDecimal>),
     /// A numeric value.
-    #[cfg(feature = "decimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "decimal")))]
+    #[cfg(decimal)]
+    #[cfg_attr(feature = "docs", doc(cfg(decimal)))]
     Decimal(Option<sqlx::types::Decimal>),
 
     /// TIMESTAMPTZ
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     UtcDateTime(Option<DateTime<Utc>>),
     /// TIMESTAMPTZ
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     LocalDateTime(Option<DateTime<Local>>),
     /// TIMESTAMP
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     NaiveDateTime(Option<NaiveDateTime>),
     /// DATE
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     NaiveDate(Option<NaiveDate>),
     /// TIME
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     NaiveTime(Option<NaiveTime>),
     /// TIMETZ
-    #[cfg(all(feature = "time", feature = "postgres"))]
-    #[cfg_attr(
-        feature = "docs",
-        doc(cfg(all(feature = "time", feature = "postgres")))
-    )]
+    #[cfg(all(time, only_postgres))]
+    #[cfg_attr(feature = "docs", doc(cfg(all(time, only_postgres))))]
     PgTimeTz(Option<sqlx::postgres::types::PgTimeTz>),
-    #[cfg(feature = "ipnetwork")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "ipnetwork")))]
     /// INET, CIDR
+    #[cfg(ipnetwork)]
+    #[cfg_attr(feature = "docs", doc(cfg(ipnetwork)))]
     IpNetwork(Option<sqlx::types::IpNetwork>),
 }
 
+/*
 pub(crate) struct Params<'a>(pub(crate) &'a [Value<'a>]);
 
 impl<'a> fmt::Display for Params<'a> {
@@ -358,23 +396,9 @@ impl<'a> From<Value<'a>> for serde_json::Value {
         }
     }
 }
+*/
 
 impl<'a> Value<'a> {
-    /// Creates a new integer value.
-    pub fn integer<I>(value: I) -> Self
-    where
-        I: Into<i64>,
-    {
-        Value::Integer(Some(value.into()))
-    }
-
-    /// Creates a new decimal value.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
-    pub const fn numeric(value: BigDecimal) -> Self {
-        Value::Numeric(Some(value))
-    }
-
     /// Creates a new float value.
     pub const fn float(value: f32) -> Self {
         Self::Float(Some(value))
@@ -393,15 +417,9 @@ impl<'a> Value<'a> {
         Value::Text(Some(value.into()))
     }
 
-    /// Creates a new enum value.
-    pub fn enum_variant<T>(value: T) -> Self
-    where
-        T: Into<Cow<'a, str>>,
-    {
-        Value::Enum(Some(value.into()))
-    }
-
     /// Creates a new bytes value.
+    #[cfg(not_mssql)]
+    #[cfg_attr(feature = "docs", doc(cfg(not_mssql)))]
     pub fn bytes<B>(value: B) -> Self
     where
         B: Into<Cow<'a, [u8]>>,
@@ -417,14 +435,7 @@ impl<'a> Value<'a> {
         Value::Boolean(Some(value.into()))
     }
 
-    /// Creates a new character value.
-    pub fn character<C>(value: C) -> Self
-    where
-        C: Into<char>,
-    {
-        Value::Char(Some(value.into()))
-    }
-
+    /*
     /// Creates a new array value.
     pub fn array<I, V>(value: I) -> Self
     where
@@ -433,24 +444,26 @@ impl<'a> Value<'a> {
     {
         Value::Array(Some(value.into_iter().map(|v| v.into()).collect()))
     }
+    */
 
     /// Creates a new uuid value.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+    #[cfg(uuid)]
+    #[cfg_attr(feature = "docs", doc(cfg(uuid)))]
     pub const fn uuid(value: Uuid) -> Self {
         Value::Uuid(Some(value))
     }
 
+    /*
     /// Creates a new datetime value.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     pub const fn datetime(value: DateTime<Utc>) -> Self {
         Value::DateTime(Some(value))
     }
 
     /// Creates a new date value.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg(chrono)]
+    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
     pub const fn date(value: NaiveDate) -> Self {
         Value::Date(Some(value))
     }
@@ -574,11 +587,15 @@ impl<'a> Value<'a> {
     pub const fn is_integer(&self) -> bool {
         matches!(self, Value::Integer(_))
     }
+    */
 
     /// Returns an `i64` if the value is an integer, otherwise `None`.
     pub const fn as_i64(&self) -> Option<i64> {
         match self {
-            Value::Integer(i) => *i,
+            Value::I8(Some(i)) => Some(*i as i64),
+            Value::I16(Some(i)) => Some(*i as i64),
+            Value::I32(Some(i)) => Some(*i as i64),
+            Value::I64(i) => *i,
             _ => None,
         }
     }
@@ -599,208 +616,219 @@ impl<'a> Value<'a> {
         }
     }
 
-    /// `true` if the `Value` is a numeric value or can be converted to one.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
-    pub const fn is_numeric(&self) -> bool {
-        matches!(self, Value::Numeric(_) | Value::Float(_) | Value::Double(_))
-    }
-
-    /// Returns a bigdecimal, if the value is a numeric, float or double value,
-    /// otherwise `None`.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
-    pub fn into_numeric(self) -> Option<BigDecimal> {
-        match self {
-            Value::Numeric(d) => d,
-            Value::Float(f) => f.and_then(BigDecimal::from_f32),
-            Value::Double(f) => f.and_then(BigDecimal::from_f64),
-            _ => None,
+    /*
+        /// `true` if the `Value` is a numeric value or can be converted to one.
+        #[cfg(feature = "bigdecimal")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        pub const fn is_numeric(&self) -> bool {
+            matches!(self, Value::Numeric(_) | Value::Float(_) | Value::Double(_))
         }
-    }
 
-    /// Returns a reference to a bigdecimal, if the value is a numeric.
-    /// Otherwise `None`.
-    #[cfg(feature = "bigdecimal")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
-    pub const fn as_numeric(&self) -> Option<&BigDecimal> {
-        match self {
-            Value::Numeric(d) => d.as_ref(),
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is a boolean value.
-    pub const fn is_bool(&self) -> bool {
-        match self {
-            Value::Boolean(_) => true,
-            // For schemas which don't tag booleans
-            Value::Integer(Some(i)) if *i == 0 || *i == 1 => true,
-            _ => false,
-        }
-    }
-
-    /// Returns a bool if the value is a boolean, otherwise `None`.
-    pub const fn as_bool(&self) -> Option<bool> {
-        match self {
-            Value::Boolean(b) => *b,
-            // For schemas which don't tag booleans
-            Value::Integer(Some(i)) if *i == 0 || *i == 1 => Some(*i == 1),
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is an Array.
-    pub const fn is_array(&self) -> bool {
-        matches!(self, Value::Array(_))
-    }
-
-    /// `true` if the `Value` is of UUID type.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
-    pub const fn is_uuid(&self) -> bool {
-        matches!(self, Value::Uuid(_))
-    }
-
-    /// Returns an UUID if the value is of UUID type, otherwise `None`.
-    #[cfg(feature = "uuid")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
-    pub const fn as_uuid(&self) -> Option<Uuid> {
-        match self {
-            Value::Uuid(u) => *u,
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is a DateTime.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn is_datetime(&self) -> bool {
-        matches!(self, Value::DateTime(_))
-    }
-
-    /// Returns a `DateTime` if the value is a `DateTime`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn as_datetime(&self) -> Option<DateTime<Utc>> {
-        match self {
-            Value::DateTime(dt) => *dt,
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is a Date.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn is_date(&self) -> bool {
-        matches!(self, Value::Date(_))
-    }
-
-    /// Returns a `NaiveDate` if the value is a `Date`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn as_date(&self) -> Option<NaiveDate> {
-        match self {
-            Value::Date(dt) => *dt,
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is a `Time`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn is_time(&self) -> bool {
-        matches!(self, Value::Time(_))
-    }
-
-    /// Returns a `NaiveTime` if the value is a `Time`, otherwise `None`.
-    #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-    pub const fn as_time(&self) -> Option<NaiveTime> {
-        match self {
-            Value::Time(time) => *time,
-            _ => None,
-        }
-    }
-
-    /// `true` if the `Value` is a JSON value.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-    pub const fn is_json(&self) -> bool {
-        matches!(self, Value::Json(_))
-    }
-
-    /// Returns a reference to a JSON Value if of Json type, otherwise `None`.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-    pub const fn as_json(&self) -> Option<&serde_json::Value> {
-        match self {
-            Value::Json(Json::JsonValue(Some(j))) => Some(j),
-            _ => None,
-        }
-    }
-
-    /// Transforms to a JSON Value if of Json type, otherwise `None`.
-    #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-    pub fn into_json(self) -> Option<serde_json::Value> {
-        match self {
-            Value::Json(Json::JsonValue(Some(j))) => Some(j),
-            Value::Json(Json::JsonRawValue(Some(j))) => serde_json::to_value(*j).ok(),
-            _ => None,
-        }
-    }
-
-    /// Returns a Vec<T> if the value is an array of T, otherwise `None`.
-    pub fn into_vec<T>(self) -> Option<Vec<T>>
-    where
-        // Implement From<Value>
-        T: TryFrom<Value<'a>>,
-    {
-        match self {
-            Value::Array(Some(vec)) => {
-                let rslt: Result<Vec<_>, _> = vec.into_iter().map(T::try_from).collect();
-                match rslt {
-                    Err(_) => None,
-                    Ok(values) => Some(values),
-                }
+        /// Returns a bigdecimal, if the value is a numeric, float or double value,
+        /// otherwise `None`.
+        #[cfg(feature = "bigdecimal")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        pub fn into_numeric(self) -> Option<BigDecimal> {
+            match self {
+                Value::Numeric(d) => d,
+                Value::Float(f) => f.and_then(BigDecimal::from_f32),
+                Value::Double(f) => f.and_then(BigDecimal::from_f64),
+                _ => None,
             }
-            _ => None,
         }
-    }
+
+        /// Returns a reference to a bigdecimal, if the value is a numeric.
+        /// Otherwise `None`.
+        #[cfg(feature = "bigdecimal")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        pub const fn as_numeric(&self) -> Option<&BigDecimal> {
+            match self {
+                Value::Numeric(d) => d.as_ref(),
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is a boolean value.
+        pub const fn is_bool(&self) -> bool {
+            match self {
+                Value::Boolean(_) => true,
+                // For schemas which don't tag booleans
+                Value::Integer(Some(i)) if *i == 0 || *i == 1 => true,
+                _ => false,
+            }
+        }
+
+        /// Returns a bool if the value is a boolean, otherwise `None`.
+        pub const fn as_bool(&self) -> Option<bool> {
+            match self {
+                Value::Boolean(b) => *b,
+                // For schemas which don't tag booleans
+                Value::Integer(Some(i)) if *i == 0 || *i == 1 => Some(*i == 1),
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is an Array.
+        pub const fn is_array(&self) -> bool {
+            matches!(self, Value::Array(_))
+        }
+
+        /// `true` if the `Value` is of UUID type.
+        #[cfg(feature = "uuid")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+        pub const fn is_uuid(&self) -> bool {
+            matches!(self, Value::Uuid(_))
+        }
+
+        /// Returns an UUID if the value is of UUID type, otherwise `None`.
+        #[cfg(feature = "uuid")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+        pub const fn as_uuid(&self) -> Option<Uuid> {
+            match self {
+                Value::Uuid(u) => *u,
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is a DateTime.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn is_datetime(&self) -> bool {
+            matches!(self, Value::DateTime(_))
+        }
+
+        /// Returns a `DateTime` if the value is a `DateTime`, otherwise `None`.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn as_datetime(&self) -> Option<DateTime<Utc>> {
+            match self {
+                Value::DateTime(dt) => *dt,
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is a Date.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn is_date(&self) -> bool {
+            matches!(self, Value::Date(_))
+        }
+
+        /// Returns a `NaiveDate` if the value is a `Date`, otherwise `None`.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn as_date(&self) -> Option<NaiveDate> {
+            match self {
+                Value::Date(dt) => *dt,
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is a `Time`.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn is_time(&self) -> bool {
+            matches!(self, Value::Time(_))
+        }
+
+        /// Returns a `NaiveTime` if the value is a `Time`, otherwise `None`.
+        #[cfg(feature = "chrono")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        pub const fn as_time(&self) -> Option<NaiveTime> {
+            match self {
+                Value::Time(time) => *time,
+                _ => None,
+            }
+        }
+
+        /// `true` if the `Value` is a JSON value.
+        #[cfg(feature = "json")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+        pub const fn is_json(&self) -> bool {
+            matches!(self, Value::Json(_))
+        }
+
+        /// Returns a reference to a JSON Value if of Json type, otherwise `None`.
+        #[cfg(feature = "json")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+        pub const fn as_json(&self) -> Option<&serde_json::Value> {
+            match self {
+                Value::Json(Json::JsonValue(Some(j))) => Some(j),
+                _ => None,
+            }
+        }
+
+        /// Transforms to a JSON Value if of Json type, otherwise `None`.
+        #[cfg(feature = "json")]
+        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+        pub fn into_json(self) -> Option<serde_json::Value> {
+            match self {
+                Value::Json(Json::JsonValue(Some(j))) => Some(j),
+                Value::Json(Json::JsonRawValue(Some(j))) => serde_json::to_value(*j).ok(),
+                _ => None,
+            }
+        }
+
+        /// Returns a Vec<T> if the value is an array of T, otherwise `None`.
+        pub fn into_vec<T>(self) -> Option<Vec<T>>
+        where
+            // Implement From<Value>
+            T: TryFrom<Value<'a>>,
+        {
+            match self {
+                Value::Array(Some(vec)) => {
+                    let rslt: Result<Vec<_>, _> = vec.into_iter().map(T::try_from).collect();
+                    match rslt {
+                        Err(_) => None,
+                        Ok(values) => Some(values),
+                    }
+                }
+                _ => None,
+            }
+        }
+    */
 }
 
-value!(val: i64, Integer, val);
+value!(val: i8, I8, val);
+value!(val: i16, I16, val);
+value!(val: i32, I32, val);
+value!(val: i64, I64, val);
+#[cfg(mysql_or_sqlite)]
+value!(val: u8, U8, val);
+#[cfg(mysql_or_sqlite)]
+value!(val: u16, U16, val);
+#[cfg(not_mssql)]
+value!(val: u32, U32, val);
+#[cfg(only_mysql)]
+value!(val: u64, U64, val);
 value!(val: bool, Boolean, val);
 value!(val: &'a str, Text, val.into());
 value!(val: String, Text, val.into());
-value!(val: usize, Integer, i64::try_from(val).unwrap());
-value!(val: i32, Integer, i64::try_from(val).unwrap());
+value!(val: usize, I64, i64::try_from(val).unwrap());
+#[cfg(not_mssql)]
 value!(val: &'a [u8], Bytes, val.into());
 value!(val: f64, Double, val);
 value!(val: f32, Float, val);
 
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
-value!(val: DateTime<Utc>, DateTime, val);
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(chrono)]
+#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+value!(val: DateTime<Utc>, UtcDateTime, val);
+#[cfg(chrono)]
+#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
 value!(val: chrono::NaiveTime, Time, val);
-#[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg(chrono)]
+#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
 value!(val: chrono::NaiveDate, Date, val);
-#[cfg(feature = "bigdecimal")]
-value!(val: BigDecimal, Numeric, val);
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-impl_value_from_json!(val: JsonValue, JsonValue, val);
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-impl_value_from_json!(val: JsonRawValue<'a>, JsonRawValue, val);
-#[cfg(feature = "uuid")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+#[cfg(bigdecimal)]
+value!(val: BigDecimal, BigDecimal, val);
+#[cfg(json)]
+#[cfg_attr(feature = "docs", doc(cfg(json)))]
+value!(val: JsonValue, Json, Json(val));
+#[cfg(uuid)]
+#[cfg_attr(feature = "docs", doc(cfg(uuid)))]
 value!(val: Uuid, Uuid, val);
 
+/*
 impl<'a> TryFrom<Value<'a>> for i64 {
     type Error = Error;
 
@@ -863,6 +891,7 @@ impl<'a> TryFrom<Value<'a>> for DateTime<Utc> {
             .ok_or_else(|| Error::builder(ErrorKind::conversion("Not a datetime")).build())
     }
 }
+*/
 
 /// An in-memory temporary table. Can be used in some of the databases in a
 /// place of an actual table. Doesn't work in MySQL 5.7.

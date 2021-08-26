@@ -83,13 +83,16 @@ impl<'a> Visitor<'a> for Postgres<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
+            #[cfg(not_mssql)]
+            Value::U32(i) => i.map(|i| self.write(i)),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
+            #[cfg(not_mssql)]
             Value::Bytes(b) => b.map(|b| self.write(format!("E'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -102,43 +105,55 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                 f if f == f64::NEG_INFINITY => self.write("'-Infinity"),
                 v => self.write(format!("{:?}", v)),
             }),
-            Value::Array(ary) => ary.map(|ary| {
-                self.surround_with("'{", "}'", |ref mut s| {
-                    let len = ary.len();
+            //  #[cfg(only_postgres)]
+            //  Value::Array(ary) => ary.map(|ary| {
+            //      self.surround_with("'{", "}'", |ref mut s| {
+            //          let len = ary.len();
 
-                    for (i, item) in ary.into_iter().enumerate() {
-                        s.write(item)?;
+            //          for (i, item) in ary.into_iter().enumerate() {
+            //              s.write(item)?;
 
-                        if i < len - 1 {
-                            s.write(",")?;
-                        }
-                    }
+            //              if i < len - 1 {
+            //                  s.write(",")?;
+            //              }
+            //          }
 
-                    Ok(())
-                })
-            }),
-            #[cfg(feature = "json")]
+            //          Ok(())
+            //      })
+            //  }),
+            #[cfg(json)]
             Value::Json(j) => match j {
-                crate::ast::Json::JsonRawValue(v) => {
-                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(*j).unwrap())))
-                }
-                crate::ast::Json::JsonValue(v) => {
-                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
-                }
+                Some(v) => self.write(format!("'{}'", serde_json::to_string(&j).unwrap())),
+                None => None,
             },
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
+            #[cfg(bigdecimal)]
+            Value::BigDecimal(r) => r.map(|r| self.write(r)),
+            #[cfg(decimal)]
+            Value::Decimal(r) => r.map(|r| self.write(r)),
+            #[cfg(uuid)]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
-            _ => unimplemented!(),
+            #[cfg(chrono)]
+            Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
+            #[cfg(only_postgres)]
+            Value::PgMoney(money) => money.map(|money| self.write(money.to_bigdecimal(2))),
+            #[cfg(only_postgres)]
+            Value::PgInterval(interval) => {
+                interval.map(|interval| self.write(format!("{:?}", interval)))
+            }
+            #[cfg(all(time, only_postgres))]
+            Value::PgTimeTz(timetz) => timetz.map(|timetz| self.write(format!("{:?}", timtz))),
+            #[cfg(ipnetwork)]
+            Value::IpNetwork(ipnetwork) => {
+                ipnetwork.map(|ipnetwork| self.write(format!("'{}'", ipnetwork)))
+            }
         };
 
         match res {
@@ -238,16 +253,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             _ if left.is_json_value() => "::jsonb",
-            _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             _ if right.is_json_value() => "::jsonb",
-            _ if right.is_xml_value() => "::text",
             _ => "",
         };
 
@@ -267,16 +280,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     ) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             _ if left.is_json_value() => "::jsonb",
-            _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             _ if right.is_json_value() => "::jsonb",
-            _ if right.is_xml_value() => "::text",
             _ => "",
         };
 
@@ -465,7 +476,7 @@ mod tests {
         #[column(primary_key)]
         id: i32,
         foo: i32,
-        #[cfg(feature = "json")]
+        #[cfg(json)]
         #[column(name = "jsonField")]
         json: serde_json::Value,
         #[column(name = "xmlField")]
@@ -670,7 +681,7 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
+        let value_expr: Expression = Value::Json(serde_json::json!({"a":"b"})).into();
         let query = Select::from_table(User::table()).so_that(value_expr.equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
@@ -702,7 +713,7 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
+        let value_expr: Expression = Value::Json(serde_json::json!({"a":"b"})).into();
         let query = Select::from_table(User::table()).so_that(value_expr.not_equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
@@ -710,6 +721,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
+    /*
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
@@ -769,6 +781,7 @@ mod tests {
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
+    */
 
     #[test]
     fn test_raw_null() {
@@ -802,7 +815,7 @@ mod tests {
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =
-            Postgres::build(Select::default().value(Value::bytes(vec![1, 2, 3]).raw())).unwrap();
+            Postgres::build(Select::default().value(Value::Bytes(vec![1, 2, 3]).raw())).unwrap();
         assert_eq!("SELECT E'010203'", sql);
         assert!(params.is_empty());
     }
@@ -818,6 +831,7 @@ mod tests {
         assert!(params.is_empty());
     }
 
+    /*
     #[test]
     fn test_raw_char() {
         let (sql, params) =
@@ -825,6 +839,7 @@ mod tests {
         assert_eq!("SELECT 'a'", sql);
         assert!(params.is_empty());
     }
+    */
 
     #[test]
     #[cfg(feature = "json")]

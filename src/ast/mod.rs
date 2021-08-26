@@ -51,7 +51,4 @@ pub use select::Select;
 pub use table::*;
 pub use union::Union;
 pub use update::*;
-#[cfg(feature = "json")]
-pub use values::Json;
-pub(crate) use values::Params;
 pub use values::{IntoRaw, Raw, Value, Values};

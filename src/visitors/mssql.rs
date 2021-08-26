@@ -242,7 +242,6 @@ impl<'a> Visitor<'a> for Mssql<'a> {
             }
             (left_kind, right_kind) => {
                 let (l_alias, r_alias) = (left.alias, right.alias);
-                let (left_xml, right_xml) = (left_kind.is_xml_value(), right_kind.is_xml_value());
 
                 let mut left = Expression::from(left_kind);
 
@@ -256,23 +255,11 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                     right = right.alias(alias);
                 }
 
-                if right_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(left)
-                    })?;
-                } else {
-                    self.visit_expression(left)?;
-                }
+                self.visit_expression(left)?;
 
                 self.write(" = ")?;
 
-                if left_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(right)
-                    })?;
-                } else {
-                    self.visit_expression(right)?;
-                }
+                self.visit_expression(right)?;
             }
         }
 
@@ -291,7 +278,6 @@ impl<'a> Visitor<'a> for Mssql<'a> {
             }
             (left_kind, right_kind) => {
                 let (l_alias, r_alias) = (left.alias, right.alias);
-                let (left_xml, right_xml) = (left_kind.is_xml_value(), right_kind.is_xml_value());
 
                 let mut left = Expression::from(left_kind);
 
@@ -305,23 +291,11 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                     right = right.alias(alias);
                 }
 
-                if right_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(left)
-                    })?;
-                } else {
-                    self.visit_expression(left)?;
-                }
+                self.visit_expression(left)?;
 
                 self.write(" <> ")?;
 
-                if left_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(right)
-                    })?;
-                } else {
-                    self.visit_expression(right)?;
-                }
+                self.visit_expression(right)?;
             }
         }
 
@@ -330,7 +304,10 @@ impl<'a> Visitor<'a> for Mssql<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -344,51 +321,7 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                 v => self.write(format!("{:?}", v)),
             }),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
-            Value::Bytes(b) => b.map(|b| self.write(format!("0x{}", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(if b { 1 } else { 0 })),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
-            Value::Array(_) => {
-                let msg = "Arrays are not supported in T-SQL.";
-                let kind = ErrorKind::conversion(msg);
-
-                let mut builder = Error::builder(kind);
-                builder.set_original_message(msg);
-
-                return Err(builder.build());
-            }
-            #[cfg(feature = "json")]
-            Value::Json(j) => {
-                j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
-            }
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
-            Value::Uuid(uuid) => uuid.map(|uuid| {
-                let s = format!(
-                    "CONVERT(uniqueidentifier, N'{}')",
-                    uuid.to_hyphenated().to_string()
-                );
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| {
-                let s = format!("CONVERT(datetimeoffset, N'{}')", dt.to_rfc3339());
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| {
-                let s = format!("CONVERT(date, N'{}')", date);
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| {
-                let s = format!("CONVERT(time, N'{}')", time);
-                self.write(s)
-            }),
-            // Style 3 is keep all whitespace + internal DTD processing:
-            // https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql?redirectedfrom=MSDN&view=sql-server-ver15#xml-styles
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("CONVERT(XML, N'{}', 3)", cow))),
         };
 
         match res {
@@ -1007,11 +940,10 @@ mod tests {
 
     #[derive(Entity)]
     struct User {
-        #[column(name = "xmlField")]
-        xml: String,
         id: i32,
     }
 
+    /*
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
@@ -1071,6 +1003,7 @@ mod tests {
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
+    */
 
     #[test]
     fn test_select_and() {

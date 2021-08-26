@@ -46,15 +46,15 @@ impl<'a> Mysql<'a> {
         right: Expression<'a>,
         sign: &str,
     ) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(json)]
         fn json_to_quaint_value<'a>(json: serde_json::Value) -> crate::Result<Value<'a>> {
             match json {
                 serde_json::Value::String(str) => Ok(Value::text(str)),
                 serde_json::Value::Number(number) => {
                     if let Some(int) = number.as_i64() {
-                        Ok(Value::integer(int))
-                    } else if let Some(float) = number.as_f64() {
-                        Ok(Value::double(float))
+                        Ok(Value::I64(Some(int)))
+                    } else if let Some(double) = number.as_f64() {
+                        Ok(Value::double(Some(double)))
                     } else {
                         unreachable!()
                     }
@@ -72,7 +72,7 @@ impl<'a> Mysql<'a> {
         }
 
         match (left, right) {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             (left, right) if left.is_json_value() && right.is_json_extract_fun() => {
                 let quaint_value = json_to_quaint_value(left.into_json_value().unwrap())?;
 
@@ -80,7 +80,7 @@ impl<'a> Mysql<'a> {
                 self.write(format!(" {} ", sign))?;
                 self.visit_expression(right)?;
             }
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             (left, right) if left.is_json_extract_fun() && right.is_json_value() => {
                 let quaint_value = json_to_quaint_value(right.into_json_value().unwrap())?;
 
@@ -135,7 +135,18 @@ impl<'a> Visitor<'a> for Mysql<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U8(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U16(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U32(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U64(i) => i.map(|i| self.write(i)),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -149,45 +160,37 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 v => self.write(format!("{:?}", v)),
             }),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
+            #[cfg(not_mssql)]
             Value::Bytes(b) => b.map(|b| self.write(format!("x'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
-            Value::Array(_) => {
-                let msg = "Arrays are not supported in MySQL.";
-                let kind = ErrorKind::conversion(msg);
-
-                let mut builder = Error::builder(kind);
-                builder.set_original_message(msg);
-
-                return Err(builder.build());
-            }
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "json")]
+            #[cfg(bigdecimal)]
+            Value::BigDecimal(r) => r.map(|r| self.write(r)),
+            #[cfg(decimal)]
+            Value::Decimal(r) => r.map(|r| self.write(r)),
+            #[cfg(json)]
             Value::Json(j) => match j {
-                crate::ast::Json::JsonValue(Some(v)) => {
+                Some(v) => {
                     let s = serde_json::to_string(&v)?;
-                    Some(self.write(format!("CONVERT('{}', JSON)", s)))
-                }
-                crate::ast::Json::JsonRawValue(Some(v)) => {
-                    let s = serde_json::to_string(*v)?;
                     Some(self.write(format!("CONVERT('{}', JSON)", s)))
                 }
                 _ => None,
             },
-            #[cfg(feature = "uuid")]
+            #[cfg(uuid)]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
-            _ => todo!(),
+            #[cfg(chrono)]
+            Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
+            #[cfg(chrono)]
+            Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
+            #[cfg(chrono)]
+            Value::NaiveDateTime(datetime) => {
+                datetime.map(|datetime| self.write(format!("'{}'", datetime)))
+            }
+            #[cfg(chrono)]
+            Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
+            #[cfg(chrono)]
+            Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", date))),
         };
 
         match res {
@@ -285,10 +288,10 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 self.write(" OFFSET ")?;
                 self.visit_parameterized(offset)
             }
-            (None, Some(Value::Integer(Some(offset)))) if offset < 1 => Ok(()),
+            (None, Some(Value::I64(Some(offset)))) if offset < 1 => Ok(()),
             (None, Some(offset)) => {
                 self.write(" LIMIT ")?;
-                self.visit_parameterized(Value::from(9_223_372_036_854_775_807i64))?;
+                self.visit_parameterized(Value::I64(Some(i64::MAX)))?;
 
                 self.write(" OFFSET ")?;
                 self.visit_parameterized(offset)
@@ -686,19 +689,15 @@ mod tests {
         let expected_sql =
             "SELECT `test`.* FROM `test` WHERE (`test`.`id1`,`test`.`id2`) IN ((?,?),(?,?))";
         let query = Select::from_table(TestEntity::table()).so_that(
-            Row::from((TestEntity::id1, TestEntity::id2)).in_selection(values!((1, 2), (3, 4))),
+            Row::from((TestEntity::id1, TestEntity::id2))
+                .in_selection(values!((1i32, 2i32), (3i32, 4i32))),
         );
 
         let (sql, params) = Mysql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4),
-            ],
+            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
             params
         );
     }
@@ -763,6 +762,7 @@ mod tests {
         assert!(params.is_empty());
     }
 
+    #[cfg(not_mssql)]
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =
@@ -779,14 +779,6 @@ mod tests {
 
         let (sql, params) = Mysql::build(Select::default().value(false.raw())).unwrap();
         assert_eq!("SELECT false", sql);
-        assert!(params.is_empty());
-    }
-
-    #[test]
-    fn test_raw_char() {
-        let (sql, params) =
-            Mysql::build(Select::default().value(Value::character('a').raw())).unwrap();
-        assert_eq!("SELECT 'a'", sql);
         assert!(params.is_empty());
     }
 

@@ -190,14 +190,14 @@ pub enum ErrorKind {
     /// A [`Pool::acquire`] timed out due to connections not becoming available or
     /// because another task encountered too many errors while trying to open a new connection.
     ///
-    /// [`Pool::acquire`]: crate::pool::Pool::acquire
+    /// [`Pool::acquire`]: sqlx::pool::Pool::acquire
     #[error("{0}")]
     SQLxPoolTimedOut(#[source] sqlx::error::Error),
 
     /// [`Pool::close`] was called while we were waiting in [`Pool::acquire`].
     ///
-    /// [`Pool::acquire`]: crate::pool::Pool::acquire
-    /// [`Pool::close`]: crate::pool::Pool::close
+    /// [`Pool::acquire`]: sqlx::pool::Pool::acquire
+    /// [`Pool::close`]: sqlx::pool::Pool::close
     #[error("{0}")]
     SQLxPoolClosed(#[source] sqlx::error::Error),
 

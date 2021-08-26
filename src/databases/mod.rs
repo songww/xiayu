@@ -1,14 +1,14 @@
 use std::default;
 use std::marker::{PhantomData};
 
+use async_trait::async_trait;
 #[cfg(feature = "chrono")]
 use sqlx::types::chrono;
+#[cfg(feature = "json")]
+use sqlx::types::Json;
 use sqlx::{Executor, Arguments, Database, IntoArguments, FromRow};
-use async_trait::async_trait;
 
 use crate::ast::{Value};
-#[cfg(feature = "json")]
-use crate::ast::Json;
 use crate::prelude::{Column, Delete, Entity, HasPrimaryKey, Insert, MultiRowInsert, SingleRowInsert, Row, OnConflict, Select, Update, Expression};
 use crate::visitors::Visitor;
 
@@ -54,54 +54,53 @@ impl<'a> HasVisitor<'a> for sqlx::Sqlite {
 macro_rules! bind_value {
     ($query:ident, $value: ident) => {
         match $value {
-            Value::Integer(integer) => $query.bind(integer),
-
             Value::I8(int8) => $query.bind(int8),
             Value::I16(int16) => $query.bind(int16),
             Value::I32(int32) => $query.bind(int32),
             Value::I64(int64) => $query.bind(int64),
             Value::Float(float) => $query.bind(float) ,
             Value::Double(double) => $query.bind(double),
-            Value::Text(text) => $query.bind(text.map(|text|text.into_owned())),
-            Value::Bytes(bytes) => $query.bind(bytes.map(|b|b.into_owned())),
             Value::Boolean(boolean) => $query.bind(boolean),
-            #[cfg(feature = "json")]
-            Value::Json(json) => match json {
-                // #[cfg(feature = "postgres")]
-                // Json::Json(json) => {
-                //     //
-                // }
-                Json::JsonValue(value) => $query.bind(value),
-                Json::JsonRawValue(raw_value) => $query.bind(raw_value.map(|v|sqlx::types::Json(*v)))
-            },
-            #[cfg(all(feature = "uuid", feature = "postgres"))]
-            Value::Uuid(uuid) => $query.bind(uuid),
-            #[cfg(feature = "postgres")]
-            Value::PgInterval(interval) => $query.bind(interval),
-            // #[cfg(feature = "postgres")]
-            // Value::PgRange(range) => $query.bind(range),
-            #[cfg(feature = "postgres")]
-            Value::PgMoney(money) => $query.bind(money),
-            #[cfg(all(feature = "bigdecimal", feature = "postgres"))]
-            Value::BigDecimal(bigdecimal) => $query.bind(bigdecimal),
-            #[cfg(all(feature = "decimal", feature = "postgres"))]
-            Value::Decimal(decimal) => $query.bind(decimal),
-            #[cfg(all(feature = "chrono", feature = "postgres"))]
-            Value::UtcDateTime(datetime) => $query.bind(datetime),
-            #[cfg(all(feature = "chrono", feature = "postgres"))]
-            Value::LocalDateTime(datetime) => $query.bind(datetime),
-            #[cfg(all(feature = "chrono", feature = "postgres"))]
-            Value::NaiveDateTime(datetime) => $query.bind(datetime),
-            #[cfg(all(feature = "chrono", feature = "postgres"))]
-            Value::NaiveDate(date) => $query.bind(date),
-            #[cfg(all(feature = "chrono", feature = "postgres"))]
-            Value::NaiveTime(time) => $query.bind(time),
-            #[cfg(all(feature = "time", feature = "postgres"))]
-            Value::PgTimeTz(timetz) => $query.bind(timetz),
-            #[cfg(all(feature = "ipnetwork", feature = "postgres"))]
-            Value::IpNetwork(ipnetwork) => $query.bind(ipnetwork),
+            Value::Text(text) => $query.bind(text.map(|text|text.into_owned())),
+            #[cfg(not_mssql)]
+            Value::Bytes(bytes) => $query.bind(bytes.map(|b|b.into_owned())),
 
-            _ => unimplemented!()
+            #[cfg(mysql_or_sqlite)]
+            Value::U8(uint8) => $query.bind(uint8),
+            #[cfg(mysql_or_sqlite)]
+            Value::U16(uint16) => $query.bind(uint16),
+            #[cfg(not_mssql)]
+            Value::U32(uint32) => $query.bind(uint32),
+            #[cfg(only_mysql)]
+            Value::U64(uint64) => $query.bind(uint64),
+            #[cfg(json)]
+            Value::Json(json) => $query.bind(json),
+            #[cfg(uuid)]
+            Value::Uuid(uuid) => $query.bind(uuid),
+            #[cfg(only_postgres)]
+            Value::PgInterval(interval) => $query.bind(interval),
+            // #[cfg(only_postgres)]
+            // Value::PgRange(range) => $query.bind(range),
+            #[cfg(only_postgres)]
+            Value::PgMoney(money) => $query.bind(money),
+            #[cfg(bigdecimal)]
+            Value::BigDecimal(bigdecimal) => $query.bind(bigdecimal),
+            #[cfg(decimal)]
+            Value::Decimal(decimal) => $query.bind(decimal),
+            #[cfg(chrono)]
+            Value::UtcDateTime(datetime) => $query.bind(datetime),
+            #[cfg(chrono)]
+            Value::LocalDateTime(datetime) => $query.bind(datetime),
+            #[cfg(chrono)]
+            Value::NaiveDateTime(datetime) => $query.bind(datetime),
+            #[cfg(chrono)]
+            Value::NaiveDate(date) => $query.bind(date),
+            #[cfg(chrono)]
+            Value::NaiveTime(time) => $query.bind(time),
+            #[cfg(all(time, only_postgres))]
+            Value::PgTimeTz(timetz) => $query.bind(timetz),
+            #[cfg(ipnetwork)]
+            Value::IpNetwork(ipnetwork) => $query.bind(ipnetwork),
         }
     };
 }
@@ -141,7 +140,7 @@ impl<'a, O> Binder<'a, sqlx::MySql> for sqlx::query::QueryAs<'a, sqlx::MySql, O,
 }
 
 #[cfg(feature = "mssql")]
-impl<'a> Binder<'a, sqlx::Mssql> for sqlx::query::Query<'a, sqlx::Mssql, O, sqlx::mssql::MssqlArguments> {
+impl<'a> Binder<'a, sqlx::Mssql> for sqlx::query::Query<'a, sqlx::Mssql, sqlx::mssql::MssqlArguments> {
     fn bind_value(self, value: Value<'a>) -> Self {
         bind_value!(self, value)
     }
@@ -303,14 +302,14 @@ impl<'e, E: HasPrimaryKey, DB: Database> SavingExecution<'e, E, DB> {
     }
 }
 
-/// create table. Returned by [`get`][crate::prelude::entity::create_table].
+/// create table. Returned by [`create`][crate::prelude::Executioner::create].
 #[must_use = "create table must be executed to affect database"]
 pub struct CreateTableExecution<DB> {
     _marker: PhantomData<DB>,
     compiled: Option<String>,
 }
 
-/// create table. Returned by [`get`][crate::prelude::entity::create].
+/// insert into table. Returned by [`insert`][crate::prelude::Entity::insert].
 #[must_use = "insert must be executed to affect database"]
 #[derive(Clone, Debug)]
 pub struct InsertingExecution<DB, I> {

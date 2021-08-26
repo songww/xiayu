@@ -46,21 +46,21 @@ impl<'a> Expression<'a> {
     #[allow(dead_code)]
     pub(crate) fn is_json_value(&self) -> bool {
         match &self.kind {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             ExpressionKind::Parameterized(Value::Json(_)) => true,
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             ExpressionKind::Value(expr) => expr.is_json_value(),
             _ => false,
         }
     }
 
     #[allow(dead_code)]
-    #[cfg(feature = "json")]
+    #[cfg(json)]
     pub(crate) fn into_json_value(self) -> Option<serde_json::Value> {
         match self.kind {
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             ExpressionKind::Parameterized(Value::Json(Json::JsonValue(json_val))) => json_val,
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             ExpressionKind::Value(expr) => expr.into_json_value(),
             _ => None,
         }
@@ -78,10 +78,12 @@ impl<'a> Expression<'a> {
         }
     }
 
+    /*
     #[allow(dead_code)]
     pub(crate) fn is_xml_value(&self) -> bool {
         self.kind.is_xml_value()
     }
+    */
 
     #[allow(dead_code)]
     pub fn is_asterisk(&self) -> bool {
@@ -212,6 +214,7 @@ pub enum ExpressionKind<'a> {
 }
 
 impl<'a> ExpressionKind<'a> {
+    /*
     pub(crate) fn is_xml_value(&self) -> bool {
         match self {
             Self::Parameterized(Value::Xml(_)) => true,
@@ -219,6 +222,7 @@ impl<'a> ExpressionKind<'a> {
             _ => false,
         }
     }
+    */
 }
 
 /// A quick alias to create an asterisk to a table.

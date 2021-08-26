@@ -52,12 +52,20 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U8(i) => i.map(|i| self.write(i)),
+            #[cfg(mysql_or_sqlite)]
+            Value::U16(i) => i.map(|i| self.write(i)),
+            #[cfg(not_mssql)]
+            Value::U32(i) => i.map(|i| self.write(i)),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
+            #[cfg(not_mssql)]
             Value::Bytes(b) => b.map(|b| self.write(format!("x'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -70,41 +78,29 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
                 f if f == f64::NEG_INFINITY => self.write("'-Infinity"),
                 v => self.write(format!("{:?}", v)),
             }),
-            Value::Array(_) => {
-                let msg = "Arrays are not supported in SQLite.";
-                let kind = ErrorKind::conversion(msg);
 
-                let mut builder = Error::builder(kind);
-                builder.set_original_message(msg);
-
-                return Err(builder.build());
-            }
-            #[cfg(feature = "json")]
+            #[cfg(json)]
             Value::Json(j) => match j {
-                crate::ast::Json::JsonValue(Some(ref v)) => {
+                Some(v) => {
                     let s = serde_json::to_string(&v)?;
-                    Some(self.write(format!("'{}'", s)))
-                }
-                crate::ast::Json::JsonRawValue(Some(ref v)) => {
-                    let s = serde_json::to_string(&**v)?;
                     Some(self.write(format!("'{}'", s)))
                 }
                 _ => None,
             },
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
+            #[cfg(uuid)]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
-            _ => todo!(),
+            #[cfg(chrono)]
+            Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
+            #[cfg(chrono)]
+            Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
+            #[cfg(chrono)]
+            Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", time))),
         };
 
         match res {
@@ -404,18 +400,13 @@ mod tests {
         use crate::values;
 
         let expected_sql = "SELECT `vals`.* FROM (VALUES (?,?),(?,?)) AS `vals`";
-        let values = Table::from(values!((1, 2), (3, 4))).alias("vals");
+        let values = Table::from(values!((1i32, 2i32), (3i32, 4i32))).alias("vals");
         let query = Select::from_table(values);
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4),
-            ],
+            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
             params
         );
     }
@@ -427,19 +418,15 @@ mod tests {
         let expected_sql =
             "SELECT `test`.* FROM `test` WHERE (`test`.`id1`,`test`.`id2`) IN (VALUES (?,?),(?,?))";
         let query = Select::from_table(TestEntity::table()).so_that(
-            Row::from((TestEntity::id1, TestEntity::id2)).in_selection(values!((1, 2), (3, 4))),
+            Row::from((TestEntity::id1, TestEntity::id2))
+                .in_selection(values!((1i32, 2i32), (3i32, 4i32))),
         );
 
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4),
-            ],
+            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
             params
         );
     }
@@ -453,10 +440,10 @@ mod tests {
 
         {
             let mut row1 = Row::new();
-            row1.push(1);
+            row1.push(1i32);
 
             let mut row2 = Row::new();
-            row2.push(2);
+            row2.push(2i32);
 
             vals.push(row1);
             vals.push(row2);
@@ -467,7 +454,7 @@ mod tests {
         let expected_sql = "SELECT `test`.* FROM `test` WHERE `test`.`id1` IN (?,?)";
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(1), Value::integer(2),], params)
+        assert_eq!(vec![Value::I32(1), Value::I32(2),], params)
     }
 
     #[test]
@@ -607,7 +594,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND `naukio`.`age` < ? AND `naukio`.`paw` = ?)";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -627,11 +614,11 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND (`naukio`.`age` < ? AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
-            .and(Naukio::age.less_than(10).and(Naukio::paw.equals("warm")));
+            .and(Naukio::age.less_than(10i32).and(Naukio::paw.equals("warm")));
 
         let query = Select::from_table(Naukio::table()).so_that(conditions);
 
@@ -646,11 +633,11 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?)";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
-            .or(Naukio::age.less_than(10))
+            .or(Naukio::age.less_than(10i32))
             .and(Naukio::paw.equals("warm"));
 
         let query = Select::from_table(Naukio::table()).so_that(conditions);
@@ -666,7 +653,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -687,7 +674,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
 
         let conditions = ConditionTree::not(
             Naukio::word
@@ -740,7 +727,7 @@ mod tests {
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(default_params(vec![Value::boolean(true),]), params);
+        assert_eq!(default_params(vec![Value::Boolean(true),]), params);
     }
 
     #[test]
@@ -769,7 +756,7 @@ mod tests {
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(default_params(vec![Value::boolean(true),]), params);
+        assert_eq!(default_params(vec![Value::Boolean(true),]), params);
     }
 
     #[derive(Entity)]
@@ -873,7 +860,7 @@ mod tests {
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =
-            Sqlite::build(Select::default().value(Value::bytes(vec![1, 2, 3]).raw())).unwrap();
+            Sqlite::build(Select::default().value(Value::Bytes(vec![1, 2, 3]).raw())).unwrap();
         assert_eq!("SELECT x'010203'", sql);
         assert!(params.is_empty());
     }
@@ -889,6 +876,7 @@ mod tests {
         assert!(params.is_empty());
     }
 
+    /*
     #[test]
     fn test_raw_char() {
         let (sql, params) =
@@ -896,6 +884,7 @@ mod tests {
         assert_eq!("SELECT 'a'", sql);
         assert!(params.is_empty());
     }
+    */
 
     #[test]
     #[cfg(feature = "json")]
