@@ -310,23 +310,25 @@ impl<'a> Visitor<'a> for Mysql<'a> {
     }
 
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(json)]
         {
             if right.is_json_value() || left.is_json_value() {
-                self.write("JSON_CONTAINS")?;
-                self.surround_with("(", ")", |s| {
-                    s.visit_expression(left.clone())?;
-                    s.write(", ")?;
-                    s.visit_expression(right.clone())
-                })?;
+                self.surround_with("(", ")", |ref mut s| {
+                    s.write("JSON_CONTAINS")?;
+                    s.surround_with("(", ")", |s| {
+                        s.visit_expression(left.clone())?;
+                        s.write(", ")?;
+                        s.visit_expression(right.clone())
+                    })?;
 
-                self.write(" AND ")?;
+                    s.write(" AND ")?;
 
-                self.write("JSON_CONTAINS")?;
-                self.surround_with("(", ")", |s| {
-                    s.visit_expression(right)?;
-                    s.write(", ")?;
-                    s.visit_expression(left)
+                    s.write("JSON_CONTAINS")?;
+                    s.surround_with("(", ")", |s| {
+                        s.visit_expression(right)?;
+                        s.write(", ")?;
+                        s.visit_expression(left)
+                    })
                 })
             } else {
                 self.visit_regular_equality_comparison(left, right)
@@ -344,30 +346,32 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         left: Expression<'a>,
         right: Expression<'a>,
     ) -> visitors::Result {
-        #[cfg(feature = "json")]
+        #[cfg(json)]
         {
             if right.is_json_value() || left.is_json_value() {
-                self.write("NOT JSON_CONTAINS")?;
-                self.surround_with("(", ")", |s| {
-                    s.visit_expression(left.clone())?;
-                    s.write(", ")?;
-                    s.visit_expression(right.clone())
-                })?;
+                self.surround_with("(", ")", |ref mut s| {
+                    s.write("NOT JSON_CONTAINS")?;
+                    s.surround_with("(", ")", |s| {
+                        s.visit_expression(left.clone())?;
+                        s.write(", ")?;
+                        s.visit_expression(right.clone())
+                    })?;
 
-                self.write(" OR ")?;
+                    s.write(" OR ")?;
 
-                self.write("NOT JSON_CONTAINS")?;
-                self.surround_with("(", ")", |s| {
-                    s.visit_expression(right)?;
-                    s.write(", ")?;
-                    s.visit_expression(left)
+                    s.write("NOT JSON_CONTAINS")?;
+                    s.surround_with("(", ")", |s| {
+                        s.visit_expression(right)?;
+                        s.write(", ")?;
+                        s.visit_expression(left)
+                    })
                 })
             } else {
                 self.visit_regular_difference_comparison(left, right)
             }
         }
 
-        #[cfg(not(feature = "json"))]
+        #[cfg(not(json))]
         {
             self.visit_regular_difference_comparison(left, right)
         }
@@ -706,7 +710,7 @@ mod tests {
     #[test]
     fn equality_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT `users`.* FROM `users` WHERE JSON_CONTAINS(`users`.`jsonField`, ?) AND JSON_CONTAINS(?, `users`.`jsonField`)"#,
+            r#"SELECT `users`.* FROM `users` WHERE (JSON_CONTAINS(`users`.`jsonField`, ?) AND JSON_CONTAINS(?, `users`.`jsonField`))"#,
             vec![serde_json::json!({"a": "b"}), serde_json::json!({"a": "b"})],
         );
 
@@ -722,7 +726,7 @@ mod tests {
     #[test]
     fn difference_with_a_json_value() {
         let expected = expected_values(
-            r#"SELECT `users`.* FROM `users` WHERE NOT JSON_CONTAINS(`users`.`jsonField`, ?) OR NOT JSON_CONTAINS(?, `users`.`jsonField`)"#,
+            r#"SELECT `users`.* FROM `users` WHERE (NOT JSON_CONTAINS(`users`.`jsonField`, ?) OR NOT JSON_CONTAINS(?, `users`.`jsonField`))"#,
             vec![serde_json::json!({"a": "b"}), serde_json::json!({"a": "b"})],
         );
 
@@ -900,6 +904,32 @@ mod tests {
 
         assert_eq!(
             "SELECT `users`.*, `Toto`.* FROM `users` LEFT JOIN `Post` AS `p` ON `p`.`user_id` = `users`.`id`, `Toto`",
+            sql
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_negation() {
+        let conditions =
+            ConditionTree::not("json".equals(Value::Json(Some(serde_json::Value::Null))));
+        let (sql, _) = Mysql::build(Select::from_table("test").so_that(conditions)).unwrap();
+
+        assert_eq!(
+            "SELECT `test`.* FROM `test` WHERE (NOT (JSON_CONTAINS(`json`, ?) AND JSON_CONTAINS(?, `json`)))",
+            sql
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_not_negation() {
+        let conditions =
+            ConditionTree::not("json".not_equals(Value::Json(Some(serde_json::Value::Null))));
+        let (sql, _) = Mysql::build(Select::from_table("test").so_that(conditions)).unwrap();
+
+        assert_eq!(
+            "SELECT `test`.* FROM `test` WHERE (NOT (NOT JSON_CONTAINS(`json`, ?) OR NOT JSON_CONTAINS(?, `json`)))",
             sql
         );
     }
