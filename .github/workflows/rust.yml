@@ -1,0 +1,45 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: shogo82148/actions-setup-mysql@v1
+      with:
+        mysql-version: '8.0'  # 5.6, 5.7   10.6, 10.5, 10.4, 10.3
+        distribution: 'mysql'   # or mariadb
+        auto-start: true
+        # my-cnf: my.cnf
+        root-password: "password for the root user"
+        user: "xiayu"
+        password: "password for the new user"
+    - name: Prepare MySQL
+      run: mysql -uroot -h127.0.0.1 -e 'SELECT version()'
+    - uses: harmon758/postgresql-action@v1
+      with:
+        postgresql version: '11'  # See https://hub.docker.com/_/postgres for available versions
+        postgresql db: 'xiayu'  # db name
+        postgresql user: 'xiayu'
+        postgresql password: ''
+    - name: Prepare PostgreSQL
+      run: 'which psql; ps aux'
+    - uses: 280780363/sqlserver-action@v1.0
+      with:
+        accept eula: Y #Required, ACCEPT_EULA confirms your acceptance of the End-User Licensing Agreement.
+        sa password: SqlSever123123 # Optional, default value is SqlSever123123.
+    - name: Prepare MSSQL
+      run: 'ps aux'
+    - name: Run tests
+      run: cargo test --features json --features uuid --features chrono --features docs --doc --tests -- --nocapture
