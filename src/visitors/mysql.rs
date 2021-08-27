@@ -9,7 +9,7 @@ use crate::{
 /// A visitor to generate queries for the MySQL database.
 ///
 /// The returned parameter values can be used directly with the mysql crate.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "mysql")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
 pub struct Mysql<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -46,7 +46,7 @@ impl<'a> Mysql<'a> {
         right: Expression<'a>,
         sign: &str,
     ) -> visitors::Result {
-        #[cfg(json)]
+        #[cfg(feature = "json")]
         fn json_to_quaint_value<'a>(json: serde_json::Value) -> crate::Result<Value<'a>> {
             match json {
                 serde_json::Value::String(str) => Ok(Value::text(str)),
@@ -54,13 +54,13 @@ impl<'a> Mysql<'a> {
                     if let Some(int) = number.as_i64() {
                         Ok(Value::I64(Some(int)))
                     } else if let Some(double) = number.as_f64() {
-                        Ok(Value::double(Some(double)))
+                        Ok(Value::double(double))
                     } else {
                         unreachable!()
                     }
                 }
                 x => {
-                    let msg = format!("Expected JSON string or number, found: {}", x);
+                    let msg = format!("Expected JSON string or number, found: {:?}", x);
                     let kind = ErrorKind::conversion(msg.clone());
 
                     let mut builder = Error::builder(kind);
@@ -72,7 +72,7 @@ impl<'a> Mysql<'a> {
         }
 
         match (left, right) {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             (left, right) if left.is_json_value() && right.is_json_extract_fun() => {
                 let quaint_value = json_to_quaint_value(left.into_json_value().unwrap())?;
 
@@ -80,7 +80,7 @@ impl<'a> Mysql<'a> {
                 self.write(format!(" {} ", sign))?;
                 self.visit_expression(right)?;
             }
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             (left, right) if left.is_json_extract_fun() && right.is_json_value() => {
                 let quaint_value = json_to_quaint_value(right.into_json_value().unwrap())?;
 
@@ -139,13 +139,13 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             Value::I16(i) => i.map(|i| self.write(i)),
             Value::I32(i) => i.map(|i| self.write(i)),
             Value::I64(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U8(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U16(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U32(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U64(i) => i.map(|i| self.write(i)),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
@@ -160,14 +160,14 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 v => self.write(format!("{:?}", v)),
             }),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            #[cfg(not_mssql)]
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::Bytes(b) => b.map(|b| self.write(format!("x'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
-            #[cfg(bigdecimal)]
+            #[cfg(feature = "bigdecimal")]
             Value::BigDecimal(r) => r.map(|r| self.write(r)),
-            #[cfg(decimal)]
+            #[cfg(feature = "decimal")]
             Value::Decimal(r) => r.map(|r| self.write(r)),
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             Value::Json(j) => match j {
                 Some(v) => {
                     let s = serde_json::to_string(&v)?;
@@ -175,22 +175,22 @@ impl<'a> Visitor<'a> for Mysql<'a> {
                 }
                 _ => None,
             },
-            #[cfg(uuid)]
+            #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::NaiveDateTime(datetime) => {
                 datetime.map(|datetime| self.write(format!("'{}'", datetime)))
             }
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(chrono)]
-            Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", date))),
+            #[cfg(feature = "chrono")]
+            Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", time))),
         };
 
         match res {
@@ -310,7 +310,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
     }
 
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
-        #[cfg(json)]
+        #[cfg(feature = "json")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.surround_with("(", ")", |ref mut s| {
@@ -346,7 +346,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
         left: Expression<'a>,
         right: Expression<'a>,
     ) -> visitors::Result {
-        #[cfg(json)]
+        #[cfg(feature = "json")]
         {
             if right.is_json_value() || left.is_json_value() {
                 self.surround_with("(", ")", |ref mut s| {
@@ -371,7 +371,7 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             }
         }
 
-        #[cfg(not(json))]
+        #[cfg(not(feature = "json"))]
         {
             self.visit_regular_difference_comparison(left, right)
         }
@@ -766,7 +766,7 @@ mod tests {
         assert!(params.is_empty());
     }
 
-    #[cfg(not_mssql)]
+    #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =

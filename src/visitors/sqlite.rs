@@ -10,7 +10,7 @@ use std::fmt::{self, Write};
 ///
 /// The returned parameter values implement the `ToSql` trait from rusqlite and
 /// can be used directly with the database.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "sqlite")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "sqlite")))]
 pub struct Sqlite<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -56,14 +56,14 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
             Value::I16(i) => i.map(|i| self.write(i)),
             Value::I32(i) => i.map(|i| self.write(i)),
             Value::I64(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U8(i) => i.map(|i| self.write(i)),
-            #[cfg(mysql_or_sqlite)]
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
             Value::U16(i) => i.map(|i| self.write(i)),
-            #[cfg(not_mssql)]
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::U32(i) => i.map(|i| self.write(i)),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            #[cfg(not_mssql)]
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::Bytes(b) => b.map(|b| self.write(format!("x'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
             Value::Float(d) => d.map(|f| match f {
@@ -79,7 +79,7 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
                 v => self.write(format!("{:?}", v)),
             }),
 
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             Value::Json(j) => match j {
                 Some(v) => {
                     let s = serde_json::to_string(&v)?;
@@ -87,19 +87,19 @@ impl<'a> Visitor<'a> for Sqlite<'a> {
                 }
                 _ => None,
             },
-            #[cfg(uuid)]
+            #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
-            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
+            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt))),
+            #[cfg(feature = "chrono")]
             Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", time))),
         };
 

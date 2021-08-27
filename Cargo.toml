@@ -10,8 +10,12 @@ keywords = ["orm", "sqlx", "sqlite", "mysql", "mssql", "postgresql"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 
+# docs.rs-specific configuration
 [package.metadata.docs.rs]
-features = ["docs", "all"]
+# document all features
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 name = "xiayu"
@@ -41,8 +45,8 @@ entities = { path = "./entity-examples", package = "xiayu-entity-examples" }
 cfg_aliases = "0.1"
 
 [features]
-default = [ "sqlite", "mysql" ]
-docs = [ "sqlx/runtime-tokio-rustls", "sqlx/mysql", "sqlx/mssql", "sqlx/sqlite", "sqlx/postgres", "json", "uuid", "chrono", "decimal", "bigdecimal" ]
+default = [ "uuid", "json", "chrono", "decimal", "bigdecimal" ]
+_docs = [ "sqlx/runtime-tokio-rustls", "sqlx/mysql", "sqlx/mssql", "sqlx/sqlite", "sqlx/postgres", "json", "uuid", "chrono", "decimal", "bigdecimal" ]
 mssql = [ "uuid", "chrono", "either", "sqlx/mssql", "indoc" ]
 mysql = [ "sqlx/mysql" ]
 sqlite = [ "sqlx/sqlite" ]
@@ -52,17 +56,6 @@ json = [ "base64", "sqlx/json", "serde", "serde_json", "num/serde" ]
 chrono = [ "sqlx/chrono" ]
 decimal = [ "sqlx/decimal" ]
 bigdecimal = [ "num", "num-bigint", "sqlx/bigdecimal" ]
-
-all = [
-    "mssql",
-    "mysql",
-    "sqlite",
-    "postgres",
-    "json",
-    "uuid",
-    "chrono",
-    "bigdecimal",
-]
 
 [workspace]
 members = [

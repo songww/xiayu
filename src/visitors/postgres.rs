@@ -7,7 +7,7 @@ use crate::visitors::{self, Visitor};
 ///
 /// The returned parameter values implement the `ToSql` trait from postgres and
 /// can be used directly with the database.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 pub struct Postgres<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -87,10 +87,10 @@ impl<'a> Visitor<'a> for Postgres<'a> {
             Value::I16(i) => i.map(|i| self.write(i)),
             Value::I32(i) => i.map(|i| self.write(i)),
             Value::I64(i) => i.map(|i| self.write(i)),
-            #[cfg(not_mssql)]
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::U32(i) => i.map(|i| self.write(i)),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            #[cfg(not_mssql)]
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::Bytes(b) => b.map(|b| self.write(format!("E'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
             Value::Float(d) => d.map(|f| match f {
@@ -105,7 +105,7 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                 f if f == f64::NEG_INFINITY => self.write("'-Infinity"),
                 v => self.write(format!("{:?}", v)),
             }),
-            //  #[cfg(only_postgres)]
+            //  #[cfg(feature = "postgres")]
             //  Value::Array(ary) => ary.map(|ary| {
             //      self.surround_with("'{", "}'", |ref mut s| {
             //          let len = ary.len();
@@ -121,36 +121,35 @@ impl<'a> Visitor<'a> for Postgres<'a> {
             //          Ok(())
             //      })
             //  }),
-            #[cfg(json)]
-            Value::Json(j) => match j {
-                Some(v) => self.write(format!("'{}'", serde_json::to_string(&j).unwrap())),
-                None => None,
-            },
-            #[cfg(bigdecimal)]
+            #[cfg(feature = "json")]
+            Value::Json(j) => {
+                j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
+            }
+            #[cfg(feature = "bigdecimal")]
             Value::BigDecimal(r) => r.map(|r| self.write(r)),
-            #[cfg(decimal)]
+            #[cfg(feature = "decimal")]
             Value::Decimal(r) => r.map(|r| self.write(r)),
-            #[cfg(uuid)]
+            #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
             Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
-            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
-            #[cfg(chrono)]
+            #[cfg(feature = "chrono")]
+            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt))),
+            #[cfg(feature = "chrono")]
             Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
-            #[cfg(only_postgres)]
+            #[cfg(feature = "postgres")]
             Value::PgMoney(money) => money.map(|money| self.write(money.to_bigdecimal(2))),
-            #[cfg(only_postgres)]
+            #[cfg(feature = "postgres")]
             Value::PgInterval(interval) => {
                 interval.map(|interval| self.write(format!("{:?}", interval)))
             }
-            #[cfg(all(time, only_postgres))]
+            #[cfg(all(feature = "time", feature = "postgres"))]
             Value::PgTimeTz(timetz) => timetz.map(|timetz| self.write(format!("{:?}", timtz))),
-            #[cfg(ipnetwork)]
+            #[cfg(feature = "ipnetwork")]
             Value::IpNetwork(ipnetwork) => {
                 ipnetwork.map(|ipnetwork| self.write(format!("'{}'", ipnetwork)))
             }
@@ -253,13 +252,13 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     fn visit_equals(&mut self, left: Expression<'a>, right: Expression<'a>) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             _ if left.is_json_value() => "::jsonb",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             _ if right.is_json_value() => "::jsonb",
             _ => "",
         };
@@ -280,13 +279,13 @@ impl<'a> Visitor<'a> for Postgres<'a> {
     ) -> visitors::Result {
         // LHS must be cast to json/xml-text if the right is a json/xml-text value and vice versa.
         let right_cast = match left {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             _ if left.is_json_value() => "::jsonb",
             _ => "",
         };
 
         let left_cast = match right {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             _ if right.is_json_value() => "::jsonb",
             _ => "",
         };
@@ -476,7 +475,7 @@ mod tests {
         #[column(primary_key)]
         id: i32,
         foo: i32,
-        #[cfg(json)]
+        #[cfg(feature = "json")]
         #[column(name = "jsonField")]
         json: serde_json::Value,
         #[column(name = "xmlField")]

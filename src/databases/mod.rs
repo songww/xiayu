@@ -49,121 +49,358 @@ impl<'a> HasVisitor<'a> for sqlx::Sqlite {
     }
 }
 
-// pub struct Values<'a>(Vec<crate::ast::Value<'a>>);
+/// Values that for mysql
+#[cfg(feature = "mysql")]
+struct MyValue {
+    //
+}
 
-macro_rules! bind_value {
-    ($query:ident, $value: ident) => {
+macro_rules! try_bind_value {
+    ($query:ident, $value: ident, $driver: literal) => {
         match $value {
-            Value::I8(int8) => $query.bind(int8),
-            Value::I16(int16) => $query.bind(int16),
-            Value::I32(int32) => $query.bind(int32),
-            Value::I64(int64) => $query.bind(int64),
-            Value::Float(float) => $query.bind(float) ,
-            Value::Double(double) => $query.bind(double),
-            Value::Boolean(boolean) => $query.bind(boolean),
-            Value::Text(text) => $query.bind(text.map(|text|text.into_owned())),
-            #[cfg(not_mssql)]
-            Value::Bytes(bytes) => $query.bind(bytes.map(|b|b.into_owned())),
+            Value::I8(int8) => Ok($query.bind(int8)),
+            Value::I16(int16) => Ok($query.bind(int16)),
+            Value::I32(int32) => Ok($query.bind(int32)),
+            Value::I64(int64) => Ok($query.bind(int64)),
+            Value::Float(float) => Ok($query.bind(float)) ,
+            Value::Double(double) => Ok($query.bind(double)),
+            Value::Boolean(boolean) => Ok($query.bind(boolean)),
+            Value::Text(text) => Ok($query.bind(text.map(|text|text.into_owned()))),
+            #[cfg(all(any(feature = "mysql", feature = "sqlite", feature = "postgres")))]
+            Value::Bytes(bytes) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(bytes.map(|b|b.into_owned())))
+                },
+                "mssql" | _ => {
+                    let msg = "Bytes are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
 
-            #[cfg(mysql_or_sqlite)]
-            Value::U8(uint8) => $query.bind(uint8),
-            #[cfg(mysql_or_sqlite)]
-            Value::U16(uint16) => $query.bind(uint16),
-            #[cfg(not_mssql)]
-            Value::U32(uint32) => $query.bind(uint32),
-            #[cfg(only_mysql)]
-            Value::U64(uint64) => $query.bind(uint64),
-            #[cfg(json)]
-            Value::Json(json) => $query.bind(json),
-            #[cfg(uuid)]
-            Value::Uuid(uuid) => $query.bind(uuid),
-            #[cfg(only_postgres)]
-            Value::PgInterval(interval) => $query.bind(interval),
-            // #[cfg(only_postgres)]
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
+            Value::U8(uint8) => match $driver {
+                "mysql" | "sqlite" => { 
+                    Ok($query.bind(uint8))
+                },
+                "mssql" | "postgres" | _ => {
+                    let msg = "u8 are not supported by SQLx with SQL Server/PostgreSQL.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(any(feature = "mysql", feature = "sqlite"))]
+            Value::U16(uint16) => match $driver {
+                "mysql" | "sqlite" => { 
+                    Ok($query.bind(uint16))
+                },
+                "mssql" | "postgres" | _ => {
+                    let msg = "u16 are not supported by SQLx with SQL Server/PostgreSQL.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            }
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+            Value::U32(uint32) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(uint32))
+                },
+                "mssql" | _ => {
+                    let msg = "u32 are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "mysql")]
+            Value::U64(uint64) => match $driver {
+                "mysql" => { 
+                    Ok($query.bind(uint64))
+                },
+                "mssql" | "sqlite" | "postgres" | _ => {
+                    let msg = "u64 are only supported by SQLx with MySQL, but not Sqlite/PostgreSQL/SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "json")]
+            Value::Json(json) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(json))
+                },
+                "mssql" | _ => {
+                    let msg = "JsonType are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "uuid")]
+            Value::Uuid(uuid) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(uuid))
+                },
+                "mssql" | _ => {
+                    let msg = "UUID Type are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "postgres")]
+            Value::PgInterval(interval) => match $driver {
+                "postgres" => { 
+                    Ok($query.bind(interval))
+                },
+                "mssql" | "mysql" | "sqlite" | _ => {
+                    let msg = "PgInterval are only supported by SQLx with PostgreSQL, but not Sqlite / MySQL / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            // #[cfg(feature = "postgres")]
             // Value::PgRange(range) => $query.bind(range),
-            #[cfg(only_postgres)]
-            Value::PgMoney(money) => $query.bind(money),
-            #[cfg(bigdecimal)]
-            Value::BigDecimal(bigdecimal) => $query.bind(bigdecimal),
-            #[cfg(decimal)]
-            Value::Decimal(decimal) => $query.bind(decimal),
-            #[cfg(chrono)]
-            Value::UtcDateTime(datetime) => $query.bind(datetime),
-            #[cfg(chrono)]
-            Value::LocalDateTime(datetime) => $query.bind(datetime),
-            #[cfg(chrono)]
-            Value::NaiveDateTime(datetime) => $query.bind(datetime),
-            #[cfg(chrono)]
-            Value::NaiveDate(date) => $query.bind(date),
-            #[cfg(chrono)]
-            Value::NaiveTime(time) => $query.bind(time),
-            #[cfg(all(time, only_postgres))]
-            Value::PgTimeTz(timetz) => $query.bind(timetz),
-            #[cfg(ipnetwork)]
-            Value::IpNetwork(ipnetwork) => $query.bind(ipnetwork),
+            #[cfg(feature = "postgres")]
+            Value::PgMoney(money) => match $driver {
+                "postgres" => { 
+                    Ok($query.bind(money))
+                },
+                "mssql" | "mysql" | "sqlite" | _ => {
+                    let msg = "PgMoney are only supported by SQLx with PostgreSQL, but not Sqlite / MySQL / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "bigdecimal")]
+            Value::BigDecimal(bigdecimal) => match $driver {
+                "postgres" | "mysql" => { 
+                    Ok($query.bind(bigdecimal))
+                },
+                "mssql" | "sqlite" | _ => {
+                    let msg = "BigDecimal are only supported by SQLx with PostgreSQL / MySQL, but not Sqlite / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "decimal")]
+            Value::Decimal(decimal) => match $driver {
+                "postgres" | "mysql" => { 
+                    Ok($query.bind(decimal))
+                },
+                "mssql" | "sqlite" | _ => {
+                    let msg = "Decimal are only supported by SQLx with PostgreSQL / MySQL, but not Sqlite / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "chrono")]
+            Value::UtcDateTime(datetime) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(datetime))
+                },
+                "mssql" | _ => {
+                    let msg = "DateTime<Utc> are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "chrono")]
+            Value::LocalDateTime(datetime) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(datetime))
+                },
+                "mssql" | _ => {
+                    let msg = "DataTime<Local> are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "chrono")]
+            Value::NaiveDateTime(datetime) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(datetime))
+                },
+                "mssql" | _ => {
+                    let msg = "NaiveDateTime are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "chrono")]
+            Value::NaiveDate(date) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(date))
+                },
+                "mssql" | _ => {
+                    let msg = "NaiveDate are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "chrono")]
+            Value::NaiveTime(time) => match $driver {
+                "mysql" | "sqlite" | "postgres" => { 
+                    Ok($query.bind(time))
+                },
+                "mssql" | _ => {
+                    let msg = "NaiveTime are not supported by SQLx with SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(all(feature = "time", feature = "postgres"))]
+            Value::PgTimeTz(timetz) => match $driver {
+                "postgres" => { 
+                    Ok($query.bind(timetz))
+                },
+                "mysql" | "sqlite" | "mssql" | _ => {
+                    let msg = "PgTimeTz are only supported by SQLx with PostgreSQL, but not Sqlite / MySQL / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
+            #[cfg(feature = "ipnetwork")]
+            Value::IpNetwork(ipnetwork) =>  match $driver {
+                "postgres" => { 
+                    Ok($query.bind(ipnetwork))
+                },
+                "mysql" | "sqlite" | "mssql" | _ => {
+                    let msg = "IpNetwork are only supported by SQLx with PostgreSQL, but not Sqlite / MySQL / SQL Server.";
+                    let kind = crate::error::ErrorKind::conversion(msg);
+
+                    let mut builder = crate::error::Error::builder(kind);
+                    builder.set_original_message(msg);
+
+                    Err(builder.build())
+                }
+            },
         }
-    };
+    }
 }
 
 pub trait Binder<'a, DB> where DB: sqlx::Database {
-    fn bind_value(self, value: Value<'a>) -> Self
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self>
     where
         Self: Sized;
 }
 
 #[cfg(feature = "postgres")]
 impl<'a> Binder<'a, sqlx::Postgres> for sqlx::query::Query<'a, sqlx::Postgres, sqlx::postgres::PgArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "postgres")
     }
 }
 
 #[cfg(feature = "postgres")]
 impl<'a, O> Binder<'a, sqlx::Postgres> for sqlx::query::QueryAs<'a, sqlx::Postgres, O, sqlx::postgres::PgArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "postgres")
     }
 }
 
 #[cfg(feature = "mysql")]
 impl<'a> Binder<'a, sqlx::MySql> for sqlx::query::Query<'a, sqlx::MySql, sqlx::mysql::MySqlArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "mysql")
     }
 }
 
 #[cfg(feature = "mysql")]
 impl<'a, O> Binder<'a, sqlx::MySql> for sqlx::query::QueryAs<'a, sqlx::MySql, O, sqlx::mysql::MySqlArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "mysql")
     }
 }
 
 #[cfg(feature = "mssql")]
 impl<'a> Binder<'a, sqlx::Mssql> for sqlx::query::Query<'a, sqlx::Mssql, sqlx::mssql::MssqlArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "mssql")
     }
 }
 
 #[cfg(feature = "mssql")]
 impl<'a, O> Binder<'a, sqlx::Mssql> for sqlx::query::QueryAs<'a, sqlx::Mssql, O, sqlx::mssql::MssqlArguments> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "mssql")
     }
 }
 
 #[cfg(feature = "sqlite")]
 impl<'a> Binder<'a, sqlx::Sqlite> for sqlx::query::Query<'a, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'a>> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "sqlite")
     }
 }
 
 #[cfg(feature = "sqlite")]
 impl<'a, O> Binder<'a, sqlx::Sqlite> for sqlx::query::QueryAs<'a, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'a>> {
-    fn bind_value(self, value: Value<'a>) -> Self {
-        bind_value!(self, value)
+    fn try_bind_value(self, value: Value<'a>) -> crate::Result<Self> {
+        try_bind_value!(self, value, "sqlite")
     }
 }
 
@@ -190,7 +427,7 @@ impl<DB: Database, T: Send> SelectingExecution<T, DB> {
         self.compiled.replace(query);
         let mut query = sqlx::query_as::<DB, T>(self.compiled.as_ref().unwrap());
         for parameter in parameters {
-            query = query.bind_value(parameter);
+            query = query.try_bind_value(parameter)?;
         }
 
         let v = query.fetch_one(conn).await?;
@@ -246,8 +483,7 @@ impl<'e, E: HasPrimaryKey, DB: Database> DeletingExecution<'e, E, DB> {
         self.compiled.replace(compiled);
         let mut query = sqlx::query::<DB>(self.compiled.as_ref().unwrap());
         for parameter in parameters {
-            // query = bind_value!(query, parameter);
-            query = query.bind_value(parameter);
+            query = query.try_bind_value(parameter)?;
         }
 
         let _query_result = query
@@ -293,7 +529,7 @@ impl<'e, E: HasPrimaryKey, DB: Database> SavingExecution<'e, E, DB> {
         self.compiled.replace(compiled);
         let mut query = sqlx::query::<DB>(self.compiled.as_ref().unwrap());
         for parameter in parameters {
-            query = query.bind_value(parameter);
+            query = query.try_bind_value(parameter)?;
         }
         let _query_result = query
             .execute(conn)
@@ -408,14 +644,11 @@ macro_rules! impl_executioner_for {
                 let (compiled, parameters) =
                     <$database as HasVisitor>::Visitor::build(request.saving.clone())?;
                 // 'a for borrowed from self.compiled
-                // println!("compiled saving: {}", &compiled);
-                // println!("parameters ---> {:?}", parameters);
                 request.compiled.replace(compiled);
                 let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
                 for parameter in parameters {
-                    query = query.bind_value(parameter);
+                    query = query.try_bind_value(parameter)?;
                 }
-                // println!("query ---> {:?}", query);
                 let _query_result = self.execute(query).await?;
                 Ok(())
             }
@@ -430,9 +663,8 @@ macro_rules! impl_executioner_for {
                 request.compiled.replace(compiled);
                 let mut query = sqlx::query::<$database>(request.compiled.as_ref().unwrap());
                 for parameter in parameters {
-                    query = query.bind_value(parameter);
+                    query = query.try_bind_value(parameter)?;
                 }
-                // println!("query ---> {:?}", query);
                 let query_result = self.execute(query).await?;
                 Ok(query_result)
             }

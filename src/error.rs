@@ -287,11 +287,6 @@ pub enum ErrorKind {
     #[error("Value out of range error. {}", message)]
     ValueOutOfRange { message: String },
 
-    #[cfg(feature = "serde-support")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "serde-support")))]
-    #[error("Deserializing a ResultRow {:?}", _0)]
-    FromRowError(serde::de::value::Error),
-
     #[error(
         "Incorrect number of parameters given to a statement. Expected {}: got: {}.",
         expected,
@@ -331,7 +326,7 @@ impl From<Error> for ErrorKind {
 
 /*
 #[cfg(feature = "bigdecimal")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
 impl From<bigdecimal::ParseBigDecimalError> for Error {
     fn from(e: bigdecimal::ParseBigDecimalError) -> Self {
         let kind = ErrorKind::conversion(format!("{}", e));
@@ -341,7 +336,7 @@ impl From<bigdecimal::ParseBigDecimalError> for Error {
 */
 
 #[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
 impl From<serde_json::Error> for Error {
     fn from(_: serde_json::Error) -> Self {
         Self::builder(ErrorKind::conversion("Malformed JSON data.")).build()
@@ -390,21 +385,6 @@ impl From<num::TryFromIntError> for Error {
         .build()
     }
 }
-
-/*
-impl From<connection_string::Error> for Error {
-    fn from(err: connection_string::Error) -> Error {
-        Self::builder(ErrorKind::DatabaseUrlIsInvalid(err.to_string())).build()
-    }
-}
-
-impl From<url::ParseError> for Error {
-    fn from(e: url::ParseError) -> Error {
-        let kind = ErrorKind::DatabaseUrlIsInvalid(e.to_string());
-        Error::builder(kind).build()
-    }
-}
-8*/
 
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {

@@ -231,7 +231,7 @@ impl<'a> Insert<'a> {
     /// ```
     #[cfg(any(feature = "postgres", feature = "mssql", feature = "sqlite"))]
     #[cfg_attr(
-        feature = "docs",
+        docsrs,
         doc(cfg(any(feature = "postgres", feature = "mssql", feature = "sqlite")))
     )]
     pub fn returning<K, I>(mut self, columns: I) -> Self

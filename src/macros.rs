@@ -88,26 +88,6 @@ macro_rules! val {
     };
 }
 
-macro_rules! impl_value_from_json {
-    ($target:ident: $kind:ty,$paramkind:ident,$that:expr) => {
-        impl<'a> From<$kind> for crate::ast::Value<'a> {
-            fn from(that: $kind) -> Self {
-                let $target = that;
-                crate::ast::Value::Json(crate::ast::Json::$paramkind(Some($that)))
-            }
-        }
-
-        impl<'a> From<Option<$kind>> for crate::ast::Value<'a> {
-            fn from(that: Option<$kind>) -> Self {
-                match that {
-                    Some(val) => crate::ast::Value::Json(crate::ast::Json::$paramkind(Some(val))),
-                    None => crate::ast::Value::Json(crate::ast::Json::$paramkind(None)),
-                }
-            }
-        }
-    };
-}
-
 macro_rules! value {
     ($target:ident: $kind:ty,$paramkind:ident,$that:expr) => {
         impl<'a> From<$kind> for crate::ast::Value<'a> {

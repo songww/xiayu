@@ -46,21 +46,22 @@ impl<'a> Expression<'a> {
     #[allow(dead_code)]
     pub(crate) fn is_json_value(&self) -> bool {
         match &self.kind {
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             ExpressionKind::Parameterized(Value::Json(_)) => true,
-            #[cfg(json)]
+            #[cfg(feature = "json")]
             ExpressionKind::Value(expr) => expr.is_json_value(),
             _ => false,
         }
     }
 
     #[allow(dead_code)]
-    #[cfg(json)]
+    #[cfg(feature = "json")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     pub(crate) fn into_json_value(self) -> Option<serde_json::Value> {
         match self.kind {
-            #[cfg(json)]
-            ExpressionKind::Parameterized(Value::Json(Json::JsonValue(json_val))) => json_val,
-            #[cfg(json)]
+            #[cfg(feature = "json")]
+            ExpressionKind::Parameterized(Value::Json(json_val)) => serde_json::to_value(json_val).ok(),
+            #[cfg(feature = "json")]
             ExpressionKind::Value(expr) => expr.into_json_value(),
             _ => None,
         }

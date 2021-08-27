@@ -3,15 +3,15 @@ use std::borrow::{Borrow, Cow};
 use std::convert::TryFrom;
 use std::{fmt, option};
 
-#[cfg(bigdecimal)]
+#[cfg(feature = "bigdecimal")]
 use num::{FromPrimitive, ToPrimitive};
-#[cfg(json)]
+#[cfg(feature = "json")]
 use serde_json::{Number, Value as JsonValue};
-#[cfg(chrono)]
+#[cfg(feature = "chrono")]
 use sqlx::types::chrono::{self, DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-#[cfg(bigdecimal)]
+#[cfg(feature = "bigdecimal")]
 use sqlx::types::BigDecimal;
-#[cfg(uuid)]
+#[cfg(feature = "uuid")]
 use sqlx::types::Uuid;
 
 use crate::ast::*;
@@ -55,110 +55,11 @@ trait PgCompatibleType:
 //     }
 // }
 
-/*
-#[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-#[derive(Debug, Clone, PartialEq)]
-pub enum Json<'a> {
-    // #[cfg(feature = "postgres")]
-    // #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
-    // Json(Option<sqlx::types::Json<Box<Value<'a>>>>),
-    #[cfg(any(feature = "mysql", feature = "postgres"))]
-    JsonValue(Option<JsonValue>),
-    #[cfg(feature = "postgres")]
-    JsonRawValue(Option<JsonRawValue<'a>>),
-}
-
-#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
-)]
-impl<'a> From<JsonValue> for Json<'a> {
-    fn from(v: JsonValue) -> Self {
-        Json::JsonValue(Some(v))
-    }
-}
-
-#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
-)]
-impl<'a> From<Option<JsonValue>> for Json<'a> {
-    fn from(v: Option<JsonValue>) -> Self {
-        Json::JsonValue(v)
-    }
-}
-
-#[cfg(all(feature = "json", feature = "postgres"))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", feature = "postgres")))
-)]
-impl<'a> From<Option<JsonRawValue<'a>>> for Json<'a> {
-    fn from(v: Option<JsonRawValue<'a>>) -> Self {
-        Json::JsonRawValue(v)
-    }
-}
-
-#[cfg(all(feature = "json", feature = "postgres"))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", feature = "postgres")))
-)]
-impl<'a> From<JsonRawValue<'a>> for Json<'a> {
-    fn from(v: JsonRawValue<'a>) -> Self {
-        Json::JsonRawValue(Some(v))
-    }
-}
-
-#[cfg(all(feature = "json", feature = "postgres"))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", feature = "postgres")))
-)]
-impl<'a> From<&'a serde_json::value::RawValue> for JsonRawValue<'a> {
-    fn from(v: &'a serde_json::value::RawValue) -> Self {
-        JsonRawValue(v)
-    }
-}
-
-#[cfg(all(feature = "json", any(feature = "mysql", feature = "postgres")))]
-#[cfg_attr(
-    feature = "docs",
-    doc(cfg(all(feature = "json", any(feature = "mysql", feature = "postgres"))))
-)]
-impl<'a> Json<'a> {
-    pub const fn is_none(&self) -> bool {
-        match self {
-            Json::JsonValue(v) => v.is_none(),
-            #[cfg(feature = "postgres")]
-            Json::JsonRawValue(v) => v.is_none(),
-        }
-    }
-}
-
-#[cfg(feature = "json")]
-#[derive(Debug, Clone, AsRef, Deref)]
-pub struct JsonRawValue<'a>(&'a serde_json::value::RawValue);
-
-#[cfg(feature = "json")]
-impl<'a> PartialEq for JsonRawValue<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.get() == other.0.get()
-    }
-}
-*/
-
-#[cfg(json)]
-pub type Json = sqlx::types::Json<dyn serde::ser::Serialize>;
-
 /// A value we must parameterize for the prepared statement. Null values should be
 /// defined by their corresponding type variants with a `None` value for best
 /// compatibility.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'a> {
+pub enum Value<'a, J: serde::ser::Serialize = ()> {
     I8(Option<i8>),
     I16(Option<i16>),
     I32(Option<i32>),
@@ -170,105 +71,102 @@ pub enum Value<'a> {
     /// String value.
     Text(Option<Cow<'a, str>>),
     /// Bytes value.
-    #[cfg(not_mssql)]
-    #[cfg_attr(docs, doc(cfg(not_mssql)))]
+    #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
+    )]
     Bytes(Option<Cow<'a, [u8]>>),
     /// Boolean value.
     Boolean(Option<bool>),
 
-    #[cfg(all(
-        any(feature = "mysql", feature = "sqlite"),
-        not(any(feature = "mssql", feature = "postgres"))
-    ))]
-    #[cfg_attr(
-        docs,
-        doc(cfg(all(
-            any(feature = "mysql", feature = "sqlite"),
-            not(any(feature = "mssql", feature = "postgres"))
-        )))
-    )]
+    #[cfg(all(any(docsrs, feature = "mysql", feature = "sqlite"),))]
+    #[cfg_attr(docsrs, doc(cfg(all(any(feature = "mysql", feature = "sqlite"),))))]
     U8(Option<u8>),
-    #[cfg(mysql_or_sqlite)]
-    #[cfg_attr(feature = "docs", doc(cfg(mysql_or_sqlite)))]
+    #[cfg(all(any(docsrs, feature = "mysql", feature = "sqlite"),))]
+    #[cfg_attr(docsrs, doc(cfg(all(any(feature = "mysql", feature = "sqlite"),))))]
     U16(Option<u16>),
-    #[cfg(not_mssql)]
-    #[cfg_attr(feature = "docs", doc(cfg(not_mssql)))]
+    #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
+    )]
     U32(Option<u32>),
-    #[cfg(only_mysql)]
-    #[cfg_attr(feature = "docs", doc(cfg(only_mysql)))]
+    #[cfg(feature = "mysql")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
     U64(Option<u64>),
     /*
     /// Database enum value.
     Enum(Option<Cow<'a, str>>),
     /// A single character.
     Char(Option<char>),
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
     /// An array value (PostgreSQL).
     Array(Option<Vec<Value<'a>>>),
     /// A numeric value.
     /// A XML value.
     Xml(Option<Cow<'a, str>>),
     */
-    #[cfg(json)]
-    #[cfg_attr(feature = "docs", doc(cfg(json)))]
+    #[cfg(feature = "json")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     /// A JSON value.
-    Json(Option<Json>),
-    #[cfg(uuid)]
-    #[cfg_attr(feature = "docs", doc(cfg(uuid)))]
+    Json(Option<sqlx::types::Json<J>>),
+    #[cfg(feature = "uuid")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
     /// An UUID value.
     Uuid(Option<Uuid>),
 
-    #[cfg(only_postgres)]
-    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
+    #[cfg(feature = "postgres")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
     /// INTERVAL
     PgInterval(Option<sqlx::postgres::types::PgInterval>),
     /*
-    #[cfg(only_postgres)]
-    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
+    #[cfg(feature = "postgres")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
     /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
     PgRange(Option<sqlx::postgres::types::PgRange<Box<Value<'a>>>>),
     */
     /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
-    #[cfg(only_postgres)]
-    #[cfg_attr(feature = "docs", doc(cfg(only_postgres)))]
+    #[cfg(feature = "postgres")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
     PgMoney(Option<sqlx::postgres::types::PgMoney>),
 
     /// A numeric value.
-    #[cfg(bigdecimal)]
-    #[cfg_attr(feature = "docs", doc(cfg(bigdecimal)))]
+    #[cfg(feature = "bigdecimal")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
     BigDecimal(Option<sqlx::types::BigDecimal>),
     /// A numeric value.
-    #[cfg(decimal)]
-    #[cfg_attr(feature = "docs", doc(cfg(decimal)))]
+    #[cfg(feature = "decimal")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "decimal")))]
     Decimal(Option<sqlx::types::Decimal>),
 
     /// TIMESTAMPTZ
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     UtcDateTime(Option<DateTime<Utc>>),
     /// TIMESTAMPTZ
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     LocalDateTime(Option<DateTime<Local>>),
     /// TIMESTAMP
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     NaiveDateTime(Option<NaiveDateTime>),
     /// DATE
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     NaiveDate(Option<NaiveDate>),
     /// TIME
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     NaiveTime(Option<NaiveTime>),
     /// TIMETZ
-    #[cfg(all(time, only_postgres))]
-    #[cfg_attr(feature = "docs", doc(cfg(all(time, only_postgres))))]
+    #[cfg(all(feature = "time", feature = "postgres"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "time", feature = "postgres"))))]
     PgTimeTz(Option<sqlx::postgres::types::PgTimeTz>),
     /// INET, CIDR
-    #[cfg(ipnetwork)]
-    #[cfg_attr(feature = "docs", doc(cfg(ipnetwork)))]
+    #[cfg(feature = "ipnetwork")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipnetwork")))]
     IpNetwork(Option<sqlx::types::IpNetwork>),
 }
 
@@ -342,7 +240,7 @@ impl<'a> fmt::Display for Value<'a> {
 }
 
 #[cfg(feature = "json")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
 impl<'a> From<Value<'a>> for serde_json::Value {
     fn from(pv: Value<'a>) -> Self {
         let res = match pv {
@@ -418,8 +316,11 @@ impl<'a> Value<'a> {
     }
 
     /// Creates a new bytes value.
-    #[cfg(not_mssql)]
-    #[cfg_attr(feature = "docs", doc(cfg(not_mssql)))]
+    #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
+    )]
     pub fn bytes<B>(value: B) -> Self
     where
         B: Into<Cow<'a, [u8]>>,
@@ -447,37 +348,37 @@ impl<'a> Value<'a> {
     */
 
     /// Creates a new uuid value.
-    #[cfg(uuid)]
-    #[cfg_attr(feature = "docs", doc(cfg(uuid)))]
+    #[cfg(feature = "uuid")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
     pub const fn uuid(value: Uuid) -> Self {
         Value::Uuid(Some(value))
     }
 
     /*
     /// Creates a new datetime value.
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     pub const fn datetime(value: DateTime<Utc>) -> Self {
         Value::DateTime(Some(value))
     }
 
     /// Creates a new date value.
-    #[cfg(chrono)]
-    #[cfg_attr(feature = "docs", doc(cfg(chrono)))]
+    #[cfg(feature = "chrono")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     pub const fn date(value: NaiveDate) -> Self {
         Value::Date(Some(value))
     }
 
     /// Creates a new time value.
     #[cfg(feature = "chrono")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     pub const fn time(value: NaiveTime) -> Self {
         Value::Time(Some(value))
     }
 
     /// Creates a new JSON value.
     #[cfg(feature = "json")]
-    #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     pub const fn json(value: Json<'a>) -> Self {
         Value::Json(value)
     }
@@ -619,7 +520,7 @@ impl<'a> Value<'a> {
     /*
         /// `true` if the `Value` is a numeric value or can be converted to one.
         #[cfg(feature = "bigdecimal")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
         pub const fn is_numeric(&self) -> bool {
             matches!(self, Value::Numeric(_) | Value::Float(_) | Value::Double(_))
         }
@@ -627,7 +528,7 @@ impl<'a> Value<'a> {
         /// Returns a bigdecimal, if the value is a numeric, float or double value,
         /// otherwise `None`.
         #[cfg(feature = "bigdecimal")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
         pub fn into_numeric(self) -> Option<BigDecimal> {
             match self {
                 Value::Numeric(d) => d,
@@ -640,7 +541,7 @@ impl<'a> Value<'a> {
         /// Returns a reference to a bigdecimal, if the value is a numeric.
         /// Otherwise `None`.
         #[cfg(feature = "bigdecimal")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "bigdecimal")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "bigdecimal")))]
         pub const fn as_numeric(&self) -> Option<&BigDecimal> {
             match self {
                 Value::Numeric(d) => d.as_ref(),
@@ -675,14 +576,14 @@ impl<'a> Value<'a> {
 
         /// `true` if the `Value` is of UUID type.
         #[cfg(feature = "uuid")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
         pub const fn is_uuid(&self) -> bool {
             matches!(self, Value::Uuid(_))
         }
 
         /// Returns an UUID if the value is of UUID type, otherwise `None`.
         #[cfg(feature = "uuid")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "uuid")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
         pub const fn as_uuid(&self) -> Option<Uuid> {
             match self {
                 Value::Uuid(u) => *u,
@@ -692,14 +593,14 @@ impl<'a> Value<'a> {
 
         /// `true` if the `Value` is a DateTime.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn is_datetime(&self) -> bool {
             matches!(self, Value::DateTime(_))
         }
 
         /// Returns a `DateTime` if the value is a `DateTime`, otherwise `None`.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn as_datetime(&self) -> Option<DateTime<Utc>> {
             match self {
                 Value::DateTime(dt) => *dt,
@@ -709,14 +610,14 @@ impl<'a> Value<'a> {
 
         /// `true` if the `Value` is a Date.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn is_date(&self) -> bool {
             matches!(self, Value::Date(_))
         }
 
         /// Returns a `NaiveDate` if the value is a `Date`, otherwise `None`.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn as_date(&self) -> Option<NaiveDate> {
             match self {
                 Value::Date(dt) => *dt,
@@ -726,14 +627,14 @@ impl<'a> Value<'a> {
 
         /// `true` if the `Value` is a `Time`.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn is_time(&self) -> bool {
             matches!(self, Value::Time(_))
         }
 
         /// Returns a `NaiveTime` if the value is a `Time`, otherwise `None`.
         #[cfg(feature = "chrono")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
         pub const fn as_time(&self) -> Option<NaiveTime> {
             match self {
                 Value::Time(time) => *time,
@@ -743,28 +644,27 @@ impl<'a> Value<'a> {
 
         /// `true` if the `Value` is a JSON value.
         #[cfg(feature = "json")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
         pub const fn is_json(&self) -> bool {
             matches!(self, Value::Json(_))
         }
 
         /// Returns a reference to a JSON Value if of Json type, otherwise `None`.
         #[cfg(feature = "json")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-        pub const fn as_json(&self) -> Option<&serde_json::Value> {
+        #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
+        pub const fn as_json(&self) -> Option<&Json> {
             match self {
-                Value::Json(Json::JsonValue(Some(j))) => Some(j),
+                Value::Json(j) => j,
                 _ => None,
             }
         }
 
         /// Transforms to a JSON Value if of Json type, otherwise `None`.
         #[cfg(feature = "json")]
-        #[cfg_attr(feature = "docs", doc(cfg(feature = "json")))]
-        pub fn into_json(self) -> Option<serde_json::Value> {
+        #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
+        pub fn into_json(self) -> Option<Json> {
             match self {
-                Value::Json(Json::JsonValue(Some(j))) => Some(j),
-                Value::Json(Json::JsonRawValue(Some(j))) => serde_json::to_value(*j).ok(),
+                Value::Json(j) => *j,
                 _ => None,
             }
         }
@@ -793,40 +693,76 @@ value!(val: i8, I8, val);
 value!(val: i16, I16, val);
 value!(val: i32, I32, val);
 value!(val: i64, I64, val);
-#[cfg(mysql_or_sqlite)]
+#[cfg(any(features = "mysql", feature = "sqlite"))]
+#[cfg_attr(docsrs, doc(cfg(any(features = "mysql", feature = "sqlite"))))]
 value!(val: u8, U8, val);
-#[cfg(mysql_or_sqlite)]
+#[cfg(any(features = "mysql", feature = "sqlite"))]
+#[cfg_attr(docsrs, doc(cfg(any(features = "mysql", feature = "sqlite"))))]
 value!(val: u16, U16, val);
-#[cfg(not_mssql)]
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
+)]
 value!(val: u32, U32, val);
-#[cfg(only_mysql)]
+#[cfg(feature = "mysql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
 value!(val: u64, U64, val);
 value!(val: bool, Boolean, val);
 value!(val: &'a str, Text, val.into());
 value!(val: String, Text, val.into());
 value!(val: usize, I64, i64::try_from(val).unwrap());
-#[cfg(not_mssql)]
+#[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
+)]
 value!(val: &'a [u8], Bytes, val.into());
 value!(val: f64, Double, val);
 value!(val: f32, Float, val);
 
-#[cfg(chrono)]
-#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
-value!(val: DateTime<Utc>, UtcDateTime, val);
-#[cfg(chrono)]
-#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
-value!(val: chrono::NaiveTime, Time, val);
-#[cfg(chrono)]
-#[cfg_attr(feature = "docs", doc(cfg(chrono)))]
-value!(val: chrono::NaiveDate, Date, val);
-#[cfg(bigdecimal)]
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+value!(val: chrono::NaiveTime, NaiveTime, val);
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+value!(val: chrono::NaiveDate, NaiveDate, val);
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+value!(val: chrono::NaiveDateTime, NaiveDateTime, val);
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+value!(val: chrono::DateTime<chrono::Utc>, UtcDateTime, val);
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
+value!(val: chrono::DateTime<chrono::Local>, LocalDateTime, val);
+#[cfg(feature = "bigdecimal")]
 value!(val: BigDecimal, BigDecimal, val);
-#[cfg(json)]
-#[cfg_attr(feature = "docs", doc(cfg(json)))]
-value!(val: JsonValue, Json, Json(val));
-#[cfg(uuid)]
-#[cfg_attr(feature = "docs", doc(cfg(uuid)))]
+#[cfg(feature = "uuid")]
+#[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
 value!(val: Uuid, Uuid, val);
+
+#[cfg(feature = "json")]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
+impl<'a, T> From<T> for Value<'a, T>
+where
+    T: serde::ser::Serialize,
+{
+    fn from(val: T) -> Self {
+        Value::Json(Some(sqlx::types::Json(val)))
+    }
+}
+
+#[cfg(feature = "json")]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
+impl<'a, T> From<sqlx::types::Json<T>> for Value<'a, T>
+where
+    T: serde::ser::Serialize,
+{
+    fn from(val: sqlx::types::Json<T>) -> Self {
+        Value::Json(Some(val))
+    }
+}
 
 /*
 impl<'a> TryFrom<Value<'a>> for i64 {
@@ -881,7 +817,7 @@ impl<'a> TryFrom<Value<'a>> for bool {
 }
 
 #[cfg(feature = "chrono")]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "chrono")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 impl<'a> TryFrom<Value<'a>> for DateTime<Utc> {
     type Error = Error;
 

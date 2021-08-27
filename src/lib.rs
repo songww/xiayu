@@ -1,14 +1,13 @@
-#![cfg_attr(feature = "docs", feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(not(any(
-    feature = "docs",
+    docsrs,
     feature = "sqlite",
     feature = "postgres",
     feature = "mysql",
     feature = "mssql"
 )))]
 compile_error!("one of 'sqlite', 'postgres', 'mysql' or 'mssql' features must be enabled");
-
 
 #[macro_use]
 extern crate derive_more;
