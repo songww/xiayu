@@ -22,11 +22,11 @@ pub mod error;
 pub type Result<T> = std::result::Result<T, error::Error>;
 
 pub mod prelude {
-    use std::future::Future;
+    
     use std::marker::PhantomData;
 
-    use sqlx::Database;
-    use sqlx::Executor;
+    
+    
 
     pub use xiayu_derive::*;
 

@@ -1,12 +1,10 @@
-use std::any::Any;
-use std::borrow::{Borrow, Cow};
-use std::convert::TryFrom;
-use std::{fmt, option};
 
-#[cfg(feature = "bigdecimal")]
-use num::{FromPrimitive, ToPrimitive};
-#[cfg(feature = "json")]
-use serde_json::{Number, Value as JsonValue};
+use std::borrow::{Cow};
+use std::convert::TryFrom;
+
+
+
+
 #[cfg(feature = "chrono")]
 use sqlx::types::chrono::{self, DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 #[cfg(feature = "bigdecimal")]
@@ -15,7 +13,7 @@ use sqlx::types::BigDecimal;
 use sqlx::types::Uuid;
 
 use crate::ast::*;
-use crate::error::{Error, ErrorKind};
+
 
 /// A value written to the query as-is without parameterization.
 #[derive(Debug, Clone, PartialEq)]
@@ -60,40 +58,48 @@ trait PgCompatibleType:
 /// compatibility.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a, J: serde::ser::Serialize = ()> {
+    /// TINYINT
     I8(Option<i8>),
+    /// SMALLINT
     I16(Option<i16>),
+    /// INT
     I32(Option<i32>),
+    /// BIGINT
     I64(Option<i64>),
-    /// 32-bit floating point.
+    /// FLOAT -> 32-bit floating point.
     Float(Option<f32>),
-    /// 64-bit floating point.
+    /// DOUBLE -> 64-bit floating point.
     Double(Option<f64>),
-    /// String value.
+    /// VARCHAR, CHAR, TEXT -> String value.
     Text(Option<Cow<'a, str>>),
-    /// Bytes value.
+    /// VARBINARY, BINARY, BLOB -> Bytes value.
     #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
     #[cfg_attr(
         docsrs,
         doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
     )]
     Bytes(Option<Cow<'a, [u8]>>),
-    /// Boolean value.
+    /// TINYINT(1), BOOLEAN -> Boolean value.
     Boolean(Option<bool>),
 
-    #[cfg(all(any(docsrs, feature = "mysql", feature = "sqlite"),))]
+    #[cfg(any(docsrs, feature = "mysql", feature = "sqlite"))]
     #[cfg_attr(docsrs, doc(cfg(all(any(feature = "mysql", feature = "sqlite"),))))]
+    /// TINYINT UNSIGNED
     U8(Option<u8>),
-    #[cfg(all(any(docsrs, feature = "mysql", feature = "sqlite"),))]
+    #[cfg(any(docsrs, feature = "mysql", feature = "sqlite"))]
     #[cfg_attr(docsrs, doc(cfg(all(any(feature = "mysql", feature = "sqlite"),))))]
+    /// SMALLINT UNSIGNED
     U16(Option<u16>),
     #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
     #[cfg_attr(
         docsrs,
         doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
     )]
+    /// INT UNSIGNED
     U32(Option<u32>),
     #[cfg(feature = "mysql")]
     #[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
+    /// BIGINT UNSIGNED
     U64(Option<u64>),
     /*
     /// Database enum value.
@@ -126,7 +132,7 @@ pub enum Value<'a, J: serde::ser::Serialize = ()> {
     /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
     PgRange(Option<sqlx::postgres::types::PgRange<Box<Value<'a>>>>),
     */
-    /// INT8RANGE, INT4RANGE, TSRANGE, TSTZTRANGE, DATERANGE, NUMRANGE
+    /// MONEY
     #[cfg(feature = "postgres")]
     #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
     PgMoney(Option<sqlx::postgres::types::PgMoney>),
@@ -167,7 +173,7 @@ pub enum Value<'a, J: serde::ser::Serialize = ()> {
     /// INET, CIDR
     #[cfg(feature = "ipnetwork")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipnetwork")))]
-    IpNetwork(Option<sqlx::types::IpNetwork>),
+    IpNetwork(Option<sqlx::types::ipnetwork::IpNetwork>),
 }
 
 /*

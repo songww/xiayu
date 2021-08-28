@@ -1,4 +1,4 @@
-use std::fmt::{self, Write};
+use std::{convert::TryFrom, fmt::{self, Write}};
 
 use crate::{
     ast::*,
@@ -191,6 +191,10 @@ impl<'a> Visitor<'a> for Mysql<'a> {
             Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
             #[cfg(feature = "chrono")]
             Value::NaiveTime(time) => time.map(|time| self.write(format!("'{}'", time))),
+            v @ _ => {
+                crate::databases::mysql::MyValue::try_from(v)?;
+                None
+            }
         };
 
         match res {
@@ -853,7 +857,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = sqlx::types::Uuid::new_v4();
         let (sql, params) = Mysql::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(
@@ -867,7 +871,7 @@ mod tests {
     #[test]
     #[cfg(feature = "chrono")]
     fn test_raw_datetime() {
-        let dt = chrono::Utc::now();
+        let dt = sqlx::types::chrono::Utc::now();
         let (sql, params) = Mysql::build(Select::default().value(dt.raw())).unwrap();
 
         assert_eq!(format!("SELECT '{}'", dt.to_rfc3339(),), sql);

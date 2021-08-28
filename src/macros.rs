@@ -162,6 +162,7 @@ macro_rules! expression {
 }
 
 /// A test-generator to test types in the defined database.
+#[allow(unused_macros)]
 #[cfg(test)]
 macro_rules! test_type {
     ($name:ident($db:ident, $sql_type:literal, $(($input:expr, $output:expr)),+ $(,)?)) => {

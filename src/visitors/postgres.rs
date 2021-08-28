@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fmt::{self, Write};
 
 use crate::ast::*;
@@ -148,10 +149,14 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                 interval.map(|interval| self.write(format!("{:?}", interval)))
             }
             #[cfg(all(feature = "time", feature = "postgres"))]
-            Value::PgTimeTz(timetz) => timetz.map(|timetz| self.write(format!("{:?}", timtz))),
+            Value::PgTimeTz(timetz) => timetz.map(|timetz| self.write(format!("{:?}", timetz))),
             #[cfg(feature = "ipnetwork")]
             Value::IpNetwork(ipnetwork) => {
                 ipnetwork.map(|ipnetwork| self.write(format!("'{}'", ipnetwork)))
+            }
+            v @ _ => {
+                crate::databases::postgres::PgValue::try_from(v)?;
+                None
             }
         };
 
@@ -469,6 +474,8 @@ impl<'a> Visitor<'a> for Postgres<'a> {
 mod tests {
     use crate::{prelude::*, visitors::*};
     use xiayu_derive::*;
+    use sqlx::types::Uuid;
+    use sqlx::types::chrono;
 
     #[derive(Entity)]
     struct User {
@@ -853,7 +860,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = Uuid::new_v4();
         let (sql, params) = Postgres::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(

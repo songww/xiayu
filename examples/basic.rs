@@ -1,31 +1,15 @@
 #[macro_use]
 extern crate xiayu_derive;
 
-use std::marker::PhantomData;
-
 use xiayu::prelude::*;
 use xiayu::visitors::Visitor;
-use xiayu_derive::*;
-
-#[derive(Debug)]
-pub struct Relation<T> {
-    _phantom: PhantomData<T>,
-}
-
-impl<T> Relation<T> {
-    fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-}
 
 #[derive(Debug, Entity)]
 #[tablename = "entities"]
 pub struct AnEntity {
     #[column(primary_key, autoincrement, comment = "some comments")]
     pub id: i32,
-    pub another_entity_id: Relation<AnotherEntity>,
+    pub another_entity_id: i32,
     pub maybe_float: Option<f32>,
 }
 
@@ -43,7 +27,7 @@ fn main() {
 
     let entity = AnEntity {
         id: 2,
-        another_entity_id: Relation::<AnotherEntity>::new(),
+        another_entity_id: 1,
         maybe_float: None,
     };
     assert_eq!(entity.id, 2);

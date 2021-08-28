@@ -6,7 +6,6 @@ use crate::{
         Column, Comparable, Expression, ExpressionKind, Insert, IntoRaw, Join, JoinData, Joinable,
         Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Value, Values,
     },
-    error::{Error, ErrorKind},
     prelude::{Aliasable, Average, Query},
     visitors,
 };
@@ -322,6 +321,11 @@ impl<'a> Visitor<'a> for Mssql<'a> {
             }),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
             Value::Boolean(b) => b.map(|b| self.write(if b { 1 } else { 0 })),
+            v @ _ => {
+                // FIXME: Maybe define MsValue at here?
+                crate::databases::mssql::MsValue::try_from(v)?;
+                None
+            }
         };
 
         match res {
@@ -1312,7 +1316,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = sqlx::types::Uuid::new_v4();
         let (sql, params) = Mssql::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(
@@ -1329,7 +1333,7 @@ mod tests {
     #[test]
     #[cfg(feature = "chrono")]
     fn test_raw_datetime() {
-        let dt = chrono::Utc::now();
+        let dt = sqlx::types::chrono::Utc::now();
         let (sql, params) = Mssql::build(Select::default().value(dt.raw())).unwrap();
 
         assert_eq!(
