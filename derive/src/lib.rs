@@ -272,9 +272,10 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
     // let orig_generics = &entity_def.generics;
     tokens.extend(quote! {
         impl #ident {
+            #[allow(non_snake_case)]
             const _table: #namespace::Table<'static> = #table_def;
 
-            #(pub const #names: #namespace::ColumnOptions<#types> = #column_options;) *
+            #(#[allow(non_snake_case)] pub const #names: #namespace::ColumnOptions<#types> = #column_options;) *
         }
 
         impl #namespace::Entity for #ident {
@@ -302,6 +303,7 @@ pub fn derive_entity(input: TokenStream) -> TokenStream {
         // impl HasPrimaryKey if PrimaryKey exists.
         let token = quote! {
             impl #ident {
+                #[allow(non_snake_case)]
                 const _primary_key: <Self as #namespace::HasPrimaryKey>::PrimaryKey = #primary_key_column;
             }
 

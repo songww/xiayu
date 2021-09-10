@@ -29,7 +29,7 @@ macro_rules! values {
 ///
 /// ``` rust
 /// # use entities::{Cat, Dog};
-/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
+/// # use xiayu::{prelude::*, col, val, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///
@@ -63,7 +63,7 @@ macro_rules! col {
 ///
 /// ``` rust
 /// # use entities::{Cat, Dog};
-/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
+/// # use xiayu::{col, val, prelude::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///
@@ -85,26 +85,6 @@ macro_rules! col {
 macro_rules! val {
     ($val:expr) => {
         Expression::from($val)
-    };
-}
-
-macro_rules! impl_value_from_json {
-    ($target:ident: $kind:ty,$paramkind:ident,$that:expr) => {
-        impl<'a> From<$kind> for crate::ast::Value<'a> {
-            fn from(that: $kind) -> Self {
-                let $target = that;
-                crate::ast::Value::Json(crate::ast::Json::$paramkind(Some($that)))
-            }
-        }
-
-        impl<'a> From<Option<$kind>> for crate::ast::Value<'a> {
-            fn from(that: Option<$kind>) -> Self {
-                match that {
-                    Some(val) => crate::ast::Value::Json(crate::ast::Json::$paramkind(Some(val))),
-                    None => crate::ast::Value::Json(crate::ast::Json::$paramkind(None)),
-                }
-            }
-        }
     };
 }
 
@@ -182,6 +162,7 @@ macro_rules! expression {
 }
 
 /// A test-generator to test types in the defined database.
+#[allow(unused_macros)]
 #[cfg(test)]
 macro_rules! test_type {
     ($name:ident($db:ident, $sql_type:literal, $(($input:expr, $output:expr)),+ $(,)?)) => {

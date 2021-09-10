@@ -6,7 +6,6 @@ use crate::{
         Column, Comparable, Expression, ExpressionKind, Insert, IntoRaw, Join, JoinData, Joinable,
         Merge, OnConflict, Order, Ordering, Row, Table, TypeDataLength, TypeFamily, Value, Values,
     },
-    error::{Error, ErrorKind},
     prelude::{Aliasable, Average, Query},
     visitors,
 };
@@ -17,7 +16,7 @@ static GENERATED_KEYS: &str = "@generated_keys";
 /// A visitor to generate queries for the SQL Server database.
 ///
 /// The returned parameter values can be used directly with the tiberius crate.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "mssql")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "mssql")))]
 pub struct Mssql<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -242,7 +241,6 @@ impl<'a> Visitor<'a> for Mssql<'a> {
             }
             (left_kind, right_kind) => {
                 let (l_alias, r_alias) = (left.alias, right.alias);
-                let (left_xml, right_xml) = (left_kind.is_xml_value(), right_kind.is_xml_value());
 
                 let mut left = Expression::from(left_kind);
 
@@ -256,23 +254,11 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                     right = right.alias(alias);
                 }
 
-                if right_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(left)
-                    })?;
-                } else {
-                    self.visit_expression(left)?;
-                }
+                self.visit_expression(left)?;
 
                 self.write(" = ")?;
 
-                if left_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(right)
-                    })?;
-                } else {
-                    self.visit_expression(right)?;
-                }
+                self.visit_expression(right)?;
             }
         }
 
@@ -291,7 +277,6 @@ impl<'a> Visitor<'a> for Mssql<'a> {
             }
             (left_kind, right_kind) => {
                 let (l_alias, r_alias) = (left.alias, right.alias);
-                let (left_xml, right_xml) = (left_kind.is_xml_value(), right_kind.is_xml_value());
 
                 let mut left = Expression::from(left_kind);
 
@@ -305,23 +290,11 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                     right = right.alias(alias);
                 }
 
-                if right_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(left)
-                    })?;
-                } else {
-                    self.visit_expression(left)?;
-                }
+                self.visit_expression(left)?;
 
                 self.write(" <> ")?;
 
-                if left_xml {
-                    self.surround_with("CAST(", " AS NVARCHAR(MAX))", |x| {
-                        x.visit_expression(right)
-                    })?;
-                } else {
-                    self.visit_expression(right)?;
-                }
+                self.visit_expression(right)?;
             }
         }
 
@@ -330,7 +303,10 @@ impl<'a> Visitor<'a> for Mssql<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -344,51 +320,12 @@ impl<'a> Visitor<'a> for Mssql<'a> {
                 v => self.write(format!("{:?}", v)),
             }),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
-            Value::Bytes(b) => b.map(|b| self.write(format!("0x{}", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(if b { 1 } else { 0 })),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
-            Value::Array(_) => {
-                let msg = "Arrays are not supported in T-SQL.";
-                let kind = ErrorKind::conversion(msg);
-
-                let mut builder = Error::builder(kind);
-                builder.set_original_message(msg);
-
-                return Err(builder.build());
+            v @ _ => {
+                // FIXME: Maybe define MsValue at here?
+                crate::databases::mssql::MsValue::try_from(v)?;
+                None
             }
-            #[cfg(feature = "json")]
-            Value::Json(j) => {
-                j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
-            }
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
-            #[cfg(feature = "uuid")]
-            Value::Uuid(uuid) => uuid.map(|uuid| {
-                let s = format!(
-                    "CONVERT(uniqueidentifier, N'{}')",
-                    uuid.to_hyphenated().to_string()
-                );
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| {
-                let s = format!("CONVERT(datetimeoffset, N'{}')", dt.to_rfc3339());
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| {
-                let s = format!("CONVERT(date, N'{}')", date);
-                self.write(s)
-            }),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| {
-                let s = format!("CONVERT(time, N'{}')", time);
-                self.write(s)
-            }),
-            // Style 3 is keep all whitespace + internal DTD processing:
-            // https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql?redirectedfrom=MSDN&view=sql-server-ver15#xml-styles
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("CONVERT(XML, N'{}', 3)", cow))),
         };
 
         match res {
@@ -762,11 +699,11 @@ mod tests {
     #[test]
     fn test_aliased_null() {
         let expected_sql = "SELECT @P1 AS [test]";
-        let query = Select::default().value(val!(Value::Integer(None)).alias("test"));
+        let query = Select::default().value(val!(Value::I32(None)).alias("test"));
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::Integer(None)], params);
+        assert_eq!(vec![Value::I32(None)], params);
     }
 
     #[derive(Entity)]
@@ -813,10 +750,10 @@ mod tests {
         assert_eq!(expected_sql, sql);
         assert_eq!(
             vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4),
+                Value::int32(1),
+                Value::int32(2),
+                Value::int32(3),
+                Value::int32(4),
             ],
             params
         );
@@ -838,10 +775,10 @@ mod tests {
         assert_eq!(expected_sql, sql);
         assert_eq!(
             vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4),
+                Value::int32(1),
+                Value::int32(2),
+                Value::int32(3),
+                Value::int32(4),
             ],
             params
         );
@@ -870,7 +807,7 @@ mod tests {
         let expected_sql = "SELECT [test].* FROM [test] WHERE [test].[id1] IN (@P1,@P2)";
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(1), Value::integer(2),], params)
+        assert_eq!(vec![Value::int32(1), Value::int32(2),], params)
     }
 
     #[test]
@@ -1007,11 +944,10 @@ mod tests {
 
     #[derive(Entity)]
     struct User {
-        #[column(name = "xmlField")]
-        xml: String,
         id: i32,
     }
 
+    /*
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
@@ -1071,13 +1007,14 @@ mod tests {
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
+    */
 
     #[test]
     fn test_select_and() {
         let expected_sql =
             "SELECT [naukio].* FROM [naukio] WHERE ([naukio].[word] = @P1 AND [naukio].[age] < @P2 AND [naukio].[paw] = @P3)";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -1094,7 +1031,7 @@ mod tests {
     fn test_select_and_different_execution_order() {
         let expected_sql = "SELECT [naukio].* FROM [naukio] WHERE ([naukio].[word] = @P1 AND ([naukio].[age] < @P2 AND [naukio].[paw] = @P3))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -1111,7 +1048,7 @@ mod tests {
         let expected_sql =
             "SELECT [naukio].* FROM [naukio] WHERE (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3)";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -1131,7 +1068,7 @@ mod tests {
         let expected_sql =
             "SELECT [naukio].* FROM [naukio] WHERE (NOT (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -1152,7 +1089,7 @@ mod tests {
         let expected_sql =
             "SELECT [naukio].* FROM [naukio] WHERE (NOT (([naukio].[word] = @P1 OR [naukio].[age] < @P2) AND [naukio].[paw] = @P3))";
 
-        let expected_params = vec![Value::text("meow"), Value::integer(10), Value::text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = ConditionTree::not(
             Naukio::word
@@ -1265,7 +1202,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(0), Value::integer(10)], params);
+        assert_eq!(vec![Value::int32(0), Value::int64(10)], params);
     }
 
     #[test]
@@ -1278,7 +1215,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(10)], params);
+        assert_eq!(vec![Value::int64(10)], params);
     }
 
     #[test]
@@ -1293,7 +1230,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(10), Value::integer(9)], params);
+        assert_eq!(vec![Value::int64(10), Value::int64(9)], params);
     }
 
     #[test]
@@ -1307,7 +1244,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(10), Value::integer(9)], params);
+        assert_eq!(vec![Value::int64(10), Value::int64(9)], params);
     }
 
     #[test]
@@ -1361,7 +1298,7 @@ mod tests {
     #[test]
     fn test_raw_char() {
         let (sql, params) =
-            Mssql::build(Select::default().value(Value::character('a').raw())).unwrap();
+            Mssql::build(Select::default().value(Value::text("a").raw())).unwrap();
         assert_eq!("SELECT 'a'", sql);
         assert!(params.is_empty());
     }
@@ -1378,8 +1315,9 @@ mod tests {
 
     #[test]
     #[cfg(feature = "uuid")]
+    #[should_panic]
     fn test_raw_uuid() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = uuid_::Uuid::new_v4();
         let (sql, params) = Mssql::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(
@@ -1395,8 +1333,9 @@ mod tests {
 
     #[test]
     #[cfg(feature = "chrono")]
+    #[should_panic]
     fn test_raw_datetime() {
-        let dt = chrono::Utc::now();
+        let dt = sqlx::types::chrono::Utc::now();
         let (sql, params) = Mssql::build(Select::default().value(dt.raw())).unwrap();
 
         assert_eq!(
@@ -1800,7 +1739,7 @@ mod tests {
     }
     #[test]
     fn test_from() {
-        let expected_sql = "SELECT [foo].*, [bar].[a] FROM [foo], (SELECT [a] FROM [baz]) AS [bar]";
+        let expected_sql = "SELECT [foo].*, [bar].[a] FROM [foo], (SELECT [baz].[a] FROM [baz]) AS [bar]";
         let query = Select::default()
             .and_from(Foo::table())
             .and_from(Table::from(Select::from_table(Baz::table()).column(Baz::a)).alias("bar"))
@@ -1838,7 +1777,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(1), Value::integer(2)], params);
+        assert_eq!(vec![Value::int32(1), Value::int32(2)], params);
     }
 
     #[test]
@@ -1859,7 +1798,7 @@ mod tests {
         let (sql, params) = Mssql::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::integer(1), Value::integer(2)], params);
+        assert_eq!(vec![Value::int32(1), Value::int32(2)], params);
     }
 
     #[test]
@@ -1889,8 +1828,8 @@ mod tests {
 
         assert_eq!(
             vec![
-                Value::integer(1),
-                Value::integer(2),
+                Value::int32(1),
+                Value::int32(2),
                 Value::text("bar"),
                 Value::text("foo")
             ],
@@ -1924,8 +1863,8 @@ mod tests {
 
         assert_eq!(
             vec![
-                Value::integer(1),
-                Value::integer(2),
+                Value::int32(1),
+                Value::int32(2),
                 Value::text("bar"),
                 Value::text("foo")
             ],
@@ -1964,10 +1903,10 @@ mod tests {
 
         assert_eq!(
             vec![
-                Value::integer(1),
-                Value::integer(2),
-                Value::integer(3),
-                Value::integer(4)
+                Value::int32(1),
+                Value::int32(2),
+                Value::int32(3),
+                Value::int32(4)
             ],
             params
         );

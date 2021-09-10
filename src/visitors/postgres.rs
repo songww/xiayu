@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fmt::{self, Write};
 
 use crate::ast::*;
@@ -7,7 +8,7 @@ use crate::visitors::{self, Visitor};
 ///
 /// The returned parameter values implement the `ToSql` trait from postgres and
 /// can be used directly with the database.
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 pub struct Postgres<'a> {
     query: String,
     parameters: Vec<Value<'a>>,
@@ -83,13 +84,16 @@ impl<'a> Visitor<'a> for Postgres<'a> {
 
     fn visit_raw_value(&mut self, value: Value<'a>) -> visitors::Result {
         let res = match value {
-            Value::Integer(i) => i.map(|i| self.write(i)),
+            Value::I8(i) => i.map(|i| self.write(i)),
+            Value::I16(i) => i.map(|i| self.write(i)),
+            Value::I32(i) => i.map(|i| self.write(i)),
+            Value::I64(i) => i.map(|i| self.write(i)),
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
+            Value::U32(i) => i.map(|i| self.write(i)),
             Value::Text(t) => t.map(|t| self.write(format!("'{}'", t))),
-            Value::Enum(e) => e.map(|e| self.write(e)),
+            #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
             Value::Bytes(b) => b.map(|b| self.write(format!("E'{}'", hex::encode(b)))),
             Value::Boolean(b) => b.map(|b| self.write(b)),
-            Value::Xml(cow) => cow.map(|cow| self.write(format!("'{}'", cow))),
-            Value::Char(c) => c.map(|c| self.write(format!("'{}'", c))),
             Value::Float(d) => d.map(|f| match f {
                 f if f.is_nan() => self.write("'NaN'"),
                 f if f == f32::INFINITY => self.write("'Infinity'"),
@@ -102,43 +106,58 @@ impl<'a> Visitor<'a> for Postgres<'a> {
                 f if f == f64::NEG_INFINITY => self.write("'-Infinity"),
                 v => self.write(format!("{:?}", v)),
             }),
-            Value::Array(ary) => ary.map(|ary| {
-                self.surround_with("'{", "}'", |ref mut s| {
-                    let len = ary.len();
+            //  #[cfg(feature = "postgres")]
+            //  Value::Array(ary) => ary.map(|ary| {
+            //      self.surround_with("'{", "}'", |ref mut s| {
+            //          let len = ary.len();
 
-                    for (i, item) in ary.into_iter().enumerate() {
-                        s.write(item)?;
+            //          for (i, item) in ary.into_iter().enumerate() {
+            //              s.write(item)?;
 
-                        if i < len - 1 {
-                            s.write(",")?;
-                        }
-                    }
+            //              if i < len - 1 {
+            //                  s.write(",")?;
+            //              }
+            //          }
 
-                    Ok(())
-                })
-            }),
+            //          Ok(())
+            //      })
+            //  }),
             #[cfg(feature = "json")]
-            Value::Json(j) => match j {
-                crate::ast::Json::JsonRawValue(v) => {
-                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(*j).unwrap())))
-                }
-                crate::ast::Json::JsonValue(v) => {
-                    v.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
-                }
-            },
+            Value::Json(j) => {
+                j.map(|j| self.write(format!("'{}'", serde_json::to_string(&j).unwrap())))
+            }
             #[cfg(feature = "bigdecimal")]
-            Value::Numeric(r) => r.map(|r| self.write(r)),
+            Value::BigDecimal(r) => r.map(|r| self.write(r)),
+            #[cfg(feature = "decimal")]
+            Value::Decimal(r) => r.map(|r| self.write(r)),
             #[cfg(feature = "uuid")]
             Value::Uuid(uuid) => {
                 uuid.map(|uuid| self.write(format!("'{}'", uuid.to_hyphenated().to_string())))
             }
             #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339(),))),
+            Value::UtcDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
             #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| self.write(format!("'{}'", date))),
+            Value::LocalDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt.to_rfc3339()))),
             #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| self.write(format!("'{}'", time))),
-            _ => unimplemented!(),
+            Value::NaiveDateTime(dt) => dt.map(|dt| self.write(format!("'{}'", dt))),
+            #[cfg(feature = "chrono")]
+            Value::NaiveDate(date) => date.map(|date| self.write(format!("'{}'", date))),
+            #[cfg(feature = "postgres")]
+            Value::PgMoney(money) => money.map(|money| self.write(money.to_bigdecimal(2))),
+            #[cfg(feature = "postgres")]
+            Value::PgInterval(interval) => {
+                interval.map(|interval| self.write(format!("{:?}", interval)))
+            }
+            #[cfg(all(feature = "time", feature = "postgres"))]
+            Value::PgTimeTz(timetz) => timetz.map(|timetz| self.write(format!("{:?}", timetz))),
+            #[cfg(feature = "ipnetwork")]
+            Value::IpNetwork(ipnetwork) => {
+                ipnetwork.map(|ipnetwork| self.write(format!("'{}'", ipnetwork)))
+            }
+            v @ _ => {
+                crate::databases::postgres::PgValue::try_from(v)?;
+                None
+            }
         };
 
         match res {
@@ -240,14 +259,12 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         let right_cast = match left {
             #[cfg(feature = "json")]
             _ if left.is_json_value() => "::jsonb",
-            _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
             #[cfg(feature = "json")]
             _ if right.is_json_value() => "::jsonb",
-            _ if right.is_xml_value() => "::text",
             _ => "",
         };
 
@@ -269,14 +286,12 @@ impl<'a> Visitor<'a> for Postgres<'a> {
         let right_cast = match left {
             #[cfg(feature = "json")]
             _ if left.is_json_value() => "::jsonb",
-            _ if left.is_xml_value() => "::text",
             _ => "",
         };
 
         let left_cast = match right {
             #[cfg(feature = "json")]
             _ if right.is_json_value() => "::jsonb",
-            _ if right.is_xml_value() => "::text",
             _ => "",
         };
 
@@ -459,6 +474,8 @@ impl<'a> Visitor<'a> for Postgres<'a> {
 mod tests {
     use crate::{prelude::*, visitors::*};
     use xiayu_derive::*;
+    use sqlx::types::Uuid;
+    use sqlx::types::chrono;
 
     #[derive(Entity)]
     struct User {
@@ -710,6 +727,7 @@ mod tests {
         assert_eq!(expected.1, params);
     }
 
+    /*
     #[test]
     fn equality_with_a_xml_value() {
         let expected = expected_values(
@@ -769,6 +787,7 @@ mod tests {
         assert_eq!(expected.0, sql);
         assert_eq!(expected.1, params);
     }
+    */
 
     #[test]
     fn test_raw_null() {
@@ -818,6 +837,7 @@ mod tests {
         assert!(params.is_empty());
     }
 
+    /*
     #[test]
     fn test_raw_char() {
         let (sql, params) =
@@ -825,6 +845,7 @@ mod tests {
         assert_eq!("SELECT 'a'", sql);
         assert!(params.is_empty());
     }
+    */
 
     #[test]
     #[cfg(feature = "json")]
@@ -839,7 +860,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = Uuid::new_v4();
         let (sql, params) = Postgres::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(

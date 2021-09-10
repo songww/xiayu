@@ -7,12 +7,16 @@
 //!
 //! For prelude, all important imports are in `xiayu::visitors::*`;
 #[cfg(feature = "mssql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mssql")))]
 mod mssql;
 #[cfg(feature = "mysql")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
 mod mysql;
 #[cfg(feature = "postgres")]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 mod postgres;
 #[cfg(feature = "sqlite")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sqlite")))]
 mod sqlite;
 
 #[cfg(feature = "mssql")]

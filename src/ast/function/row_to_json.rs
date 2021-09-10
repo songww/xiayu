@@ -2,7 +2,7 @@ use super::Function;
 use crate::ast::Table;
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 #[cfg(all(feature = "json", feature = "postgres"))]
 /// A representation of the `ROW_TO_JSON` function in the database.
 /// Only for `postgres`
@@ -39,7 +39,7 @@ pub struct RowToJson<'a> {
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(feature = "docs", doc(cfg(feature = "postgres")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 #[cfg(all(feature = "json", feature = "postgres"))]
 pub fn row_to_json<'a, T>(expr: T, pretty_print: bool) -> Function<'a>
 where
