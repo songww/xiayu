@@ -687,7 +687,7 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let value_expr: Expression = Value::Json(serde_json::json!({"a":"b"})).into();
+        let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
         let query = Select::from_table(User::table()).so_that(value_expr.equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
@@ -719,7 +719,7 @@ mod tests {
             vec![serde_json::json!({"a": "b"})],
         );
 
-        let value_expr: Expression = Value::Json(serde_json::json!({"a":"b"})).into();
+        let value_expr: Expression = Value::json(serde_json::json!({"a":"b"})).into();
         let query = Select::from_table(User::table()).so_that(value_expr.not_equals(User::json));
         let (sql, params) = Postgres::build(query).unwrap();
 
@@ -821,7 +821,7 @@ mod tests {
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =
-            Postgres::build(Select::default().value(Value::Bytes(vec![1, 2, 3]).raw())).unwrap();
+            Postgres::build(Select::default().value(Value::bytes(vec![1, 2, 3]).raw())).unwrap();
         assert_eq!("SELECT E'010203'", sql);
         assert!(params.is_empty());
     }

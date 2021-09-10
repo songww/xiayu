@@ -5,7 +5,7 @@ use crate::ast::Value;
 
 /// Values that supported by SQLite.
 #[cfg(feature = "sqlite")]
-pub enum SQLiteValue<'a, J: serde::ser::Serialize = ()> {
+pub enum SQLiteValue<'a> {
     /// TINYINT
     I8(Option<i8>),
     /// SMALLINT
@@ -35,7 +35,7 @@ pub enum SQLiteValue<'a, J: serde::ser::Serialize = ()> {
     #[cfg(feature = "json")]
     #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     /// A JSON value.
-    Json(Option<sqlx::types::Json<J>>),
+    Json(Option<serde_json::Value>),
     #[cfg(feature = "uuid")]
     #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
     /// An UUID value.

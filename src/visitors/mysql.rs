@@ -688,6 +688,8 @@ mod tests {
         id1: i32,
         id2: i32,
         bar: String,
+        #[cfg(feature = "json")]
+        json: serde_json::Value,
     }
 
     #[test]
@@ -705,7 +707,7 @@ mod tests {
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
+            vec![Value::int32(1), Value::int32(2), Value::int32(3), Value::int32(4),],
             params
         );
     }
@@ -857,7 +859,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = sqlx::types::Uuid::new_v4();
+        let uuid = uuid_::Uuid::new_v4();
         let (sql, params) = Mysql::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(
@@ -916,8 +918,8 @@ mod tests {
     #[cfg(feature = "json")]
     fn test_json_negation() {
         let conditions =
-            ConditionTree::not("json".equals(Value::Json(Some(serde_json::Value::Null))));
-        let (sql, _) = Mysql::build(Select::from_table("test").so_that(conditions)).unwrap();
+            ConditionTree::not(TestEntity::json.equals(Value::Json(Some(serde_json::Value::Null))));
+        let (sql, _) = Mysql::build(Select::from_table(TestEntity::table()).so_that(conditions)).unwrap();
 
         assert_eq!(
             "SELECT `test`.* FROM `test` WHERE (NOT (JSON_CONTAINS(`json`, ?) AND JSON_CONTAINS(?, `json`)))",
@@ -929,8 +931,8 @@ mod tests {
     #[cfg(feature = "json")]
     fn test_json_not_negation() {
         let conditions =
-            ConditionTree::not("json".not_equals(Value::Json(Some(serde_json::Value::Null))));
-        let (sql, _) = Mysql::build(Select::from_table("test").so_that(conditions)).unwrap();
+            ConditionTree::not(TestEntity::json.not_equals(Value::Json(Some(serde_json::Value::Null))));
+        let (sql, _) = Mysql::build(Select::from_table(TestEntity::table()).so_that(conditions)).unwrap();
 
         assert_eq!(
             "SELECT `test`.* FROM `test` WHERE (NOT (NOT JSON_CONTAINS(`json`, ?) OR NOT JSON_CONTAINS(?, `json`)))",

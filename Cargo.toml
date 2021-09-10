@@ -40,9 +40,7 @@ sqlx = { version = "0.5" }
 [dev-dependencies]
 tokio = { version = "1.10", features = [ "rt", "macros" ] }
 entities = { path = "./entity-examples", package = "xiayu-entity-examples" }
-
-[build-dependencies]
-cfg_aliases = "0.1"
+uuid_ = { version = "0.8", package = "uuid", features = [ "v4" ] }
 
 [features]
 default = [ "uuid", "json", "chrono", "decimal", "bigdecimal" ]

@@ -1,9 +1,6 @@
 
-use std::borrow::{Cow};
+use std::borrow::Cow;
 use std::convert::TryFrom;
-
-
-
 
 #[cfg(feature = "chrono")]
 use sqlx::types::chrono::{self, DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -57,7 +54,7 @@ trait PgCompatibleType:
 /// defined by their corresponding type variants with a `None` value for best
 /// compatibility.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'a, J: serde::ser::Serialize = ()> {
+pub enum Value<'a> {
     /// TINYINT
     I8(Option<i8>),
     /// SMALLINT
@@ -104,19 +101,17 @@ pub enum Value<'a, J: serde::ser::Serialize = ()> {
     /*
     /// Database enum value.
     Enum(Option<Cow<'a, str>>),
-    /// A single character.
-    Char(Option<char>),
-    #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
-    /// An array value (PostgreSQL).
-    Array(Option<Vec<Value<'a>>>),
-    /// A numeric value.
     /// A XML value.
     Xml(Option<Cow<'a, str>>),
     */
+    // #[cfg(feature = "postgres")]
+    // #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
+    // /// An array value (PostgreSQL).
+    // Array(Option<Vec<T>>),
     #[cfg(feature = "json")]
     #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     /// A JSON value.
-    Json(Option<sqlx::types::Json<J>>),
+    Json(Option<serde_json::Value>),
     #[cfg(feature = "uuid")]
     #[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
     /// An UUID value.
@@ -177,9 +172,9 @@ pub enum Value<'a, J: serde::ser::Serialize = ()> {
 }
 
 /*
-pub(crate) struct Params<'a>(pub(crate) &'a [Value<'a>]);
+pub(crate) struct Parameters<'a>(pub(crate) &'a [Value<'a>]);
 
-impl<'a> fmt::Display for Params<'a> {
+impl<'a> fmt::Display for Parameters<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
 
@@ -244,65 +239,19 @@ impl<'a> fmt::Display for Value<'a> {
         }
     }
 }
-
-#[cfg(feature = "json")]
-#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
-impl<'a> From<Value<'a>> for serde_json::Value {
-    fn from(pv: Value<'a>) -> Self {
-        let res = match pv {
-            Value::Integer(i) => i.map(|i| serde_json::Value::Number(Number::from(i))),
-            Value::Float(f) => f.map(|f| match Number::from_f64(f as f64) {
-                Some(number) => serde_json::Value::Number(number),
-                None => serde_json::Value::Null,
-            }),
-            Value::Double(f) => f.map(|f| match Number::from_f64(f) {
-                Some(number) => serde_json::Value::Number(number),
-                None => serde_json::Value::Null,
-            }),
-            Value::Text(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
-            Value::Bytes(bytes) => {
-                bytes.map(|bytes| serde_json::Value::String(base64::encode(&bytes)))
-            }
-            Value::Enum(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
-            Value::Boolean(b) => b.map(serde_json::Value::Bool),
-            Value::Char(c) => c.map(|c| {
-                let bytes = [c as u8];
-                let s = std::str::from_utf8(&bytes)
-                    .expect("interpret byte as UTF-8")
-                    .to_string();
-                serde_json::Value::String(s)
-            }),
-            Value::Xml(cow) => cow.map(|cow| serde_json::Value::String(cow.into_owned())),
-            Value::Array(v) => v.map(|v| {
-                serde_json::Value::Array(v.into_iter().map(serde_json::Value::from).collect())
-            }),
-            #[cfg(feature = "bigdecimal")]
-            Value::Numeric(d) => d.map(|d| serde_json::to_value(d.to_f64().unwrap()).unwrap()),
-            #[cfg(feature = "json")]
-            Value::Json(v) => match v {
-                Json::JsonValue(v) => v,
-                Json::JsonRawValue(v) => v.and_then(|v| serde_json::to_value(*v).ok()),
-            },
-            #[cfg(feature = "uuid")]
-            Value::Uuid(u) => u.map(|u| serde_json::Value::String(u.to_hyphenated().to_string())),
-            #[cfg(feature = "chrono")]
-            Value::DateTime(dt) => dt.map(|dt| serde_json::Value::String(dt.to_rfc3339())),
-            #[cfg(feature = "chrono")]
-            Value::Date(date) => date.map(|date| serde_json::Value::String(format!("{}", date))),
-            #[cfg(feature = "chrono")]
-            Value::Time(time) => time.map(|time| serde_json::Value::String(format!("{}", time))),
-            _ => unimplemented!(),
-        };
-
-        match res {
-            Some(val) => val,
-            None => serde_json::Value::Null,
-        }
-    }
-}
 */
 
 impl<'a> Value<'a> {
+    /// Creates a new int32 value.
+    pub const fn int32(value: i32) -> Self {
+        Self::I32(Some(value))
+    }
+
+    /// Creates a new int64 value.
+    pub const fn int64(value: i64) -> Self {
+        Self::I64(Some(value))
+    }
+
     /// Creates a new float value.
     pub const fn float(value: f32) -> Self {
         Self::Float(Some(value))
@@ -360,6 +309,13 @@ impl<'a> Value<'a> {
         Value::Uuid(Some(value))
     }
 
+    /// Creates a new JSON value.
+    #[cfg(feature = "json")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
+    pub fn json<J>(value: J) -> Self where J: serde::ser::Serialize {
+        Value::Json(serde_json::to_value(value).ok())
+    }
+
     /*
     /// Creates a new datetime value.
     #[cfg(feature = "chrono")]
@@ -380,13 +336,6 @@ impl<'a> Value<'a> {
     #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
     pub const fn time(value: NaiveTime) -> Self {
         Value::Time(Some(value))
-    }
-
-    /// Creates a new JSON value.
-    #[cfg(feature = "json")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
-    pub const fn json(value: Json<'a>) -> Self {
-        Value::Json(value)
     }
 
     /// Creates a new XML value.
@@ -697,59 +646,42 @@ impl<'a> Value<'a> {
 
 value!(val: i8, I8, val);
 value!(val: i16, I16, val);
-value!(val: i32, I32, val);
+// value!(val: i32, I32, val);
 value!(val: i64, I64, val);
 #[cfg(any(features = "mysql", feature = "sqlite"))]
-#[cfg_attr(docsrs, doc(cfg(any(features = "mysql", feature = "sqlite"))))]
 value!(val: u8, U8, val);
 #[cfg(any(features = "mysql", feature = "sqlite"))]
-#[cfg_attr(docsrs, doc(cfg(any(features = "mysql", feature = "sqlite"))))]
 value!(val: u16, U16, val);
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
-)]
 value!(val: u32, U32, val);
 #[cfg(feature = "mysql")]
-#[cfg_attr(docsrs, doc(cfg(feature = "mysql")))]
 value!(val: u64, U64, val);
 value!(val: bool, Boolean, val);
 value!(val: &'a str, Text, val.into());
 value!(val: String, Text, val.into());
 value!(val: usize, I64, i64::try_from(val).unwrap());
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres"))]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(any(feature = "mysql", feature = "sqlite", feature = "postgres")))
-)]
 value!(val: &'a [u8], Bytes, val.into());
 value!(val: f64, Double, val);
 value!(val: f32, Float, val);
 
 #[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 value!(val: chrono::NaiveTime, NaiveTime, val);
 #[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 value!(val: chrono::NaiveDate, NaiveDate, val);
 #[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 value!(val: chrono::NaiveDateTime, NaiveDateTime, val);
 #[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 value!(val: chrono::DateTime<chrono::Utc>, UtcDateTime, val);
 #[cfg(feature = "chrono")]
-#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 value!(val: chrono::DateTime<chrono::Local>, LocalDateTime, val);
 #[cfg(feature = "bigdecimal")]
 value!(val: BigDecimal, BigDecimal, val);
 #[cfg(feature = "uuid")]
-#[cfg_attr(docsrs, doc(cfg(feature = "uuid")))]
 value!(val: Uuid, Uuid, val);
 
+/*
 #[cfg(feature = "json")]
-#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
 impl<'a, T> From<T> for Value<'a, T>
 where
     T: serde::ser::Serialize,
@@ -758,15 +690,30 @@ where
         Value::Json(Some(sqlx::types::Json(val)))
     }
 }
+*/
+
+impl<'a> From<i32> for Value<'a> {
+    fn from(i: i32) -> Self
+    {
+        Value::I32(Some(i))
+    }
+}
+
+#[cfg(feature = "json")]
+impl<'a> From<serde_json::Value> for Value<'a> {
+    fn from(v: serde_json::Value) -> Self {
+        Value::Json(Some(v))
+    }
+}
 
 #[cfg(feature = "json")]
 #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
-impl<'a, T> From<sqlx::types::Json<T>> for Value<'a, T>
+impl<'a, J> From<sqlx::types::Json<J>> for Value<'a>
 where
-    T: serde::ser::Serialize,
+    J: serde::ser::Serialize,
 {
-    fn from(val: sqlx::types::Json<T>) -> Self {
-        Value::Json(Some(val))
+    fn from(val: sqlx::types::Json<J>) -> Self {
+        Value::Json(serde_json::to_value(val).ok())
     }
 }
 
@@ -925,7 +872,9 @@ mod tests {
     use super::*;
     #[cfg(feature = "chrono")]
     use std::str::FromStr;
+    extern crate self as xiayu;
 
+    /*
     #[test]
     fn a_parameterized_value_of_ints_can_be_converted_into_a_vec() {
         let pv = Value::array(vec![1]);
@@ -969,4 +918,5 @@ mod tests {
         let rslt: Option<Vec<f64>> = pv.into_vec();
         assert!(rslt.is_none());
     }
+    */
 }

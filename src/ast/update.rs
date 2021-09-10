@@ -32,9 +32,10 @@ impl<'a> Update<'a> {
     /// Add another column value assignment to the query
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # use entities::User;
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Update::table("users").set("foo", 10).set("bar", false);
+    /// let query = Update::table(User::table()).set(User::foo, 10).set(User::bar, false);
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("UPDATE `users` SET `foo` = ?, `bar` = ?", sql);
@@ -64,9 +65,10 @@ impl<'a> Update<'a> {
     /// [Comparable](trait.Comparable.html#required-methods) for more examples.
     ///
     /// ```rust
-    /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use xiayu::{prelude::*, visitors::{Visitor, Sqlite}};
+    /// # use entities::User;
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let query = Update::table("users").set("foo", 1).so_that("bar".equals(false));
+    /// let query = Update::table(User::table()).set(User::foo, 1).so_that(User::bar.equals(false));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!("UPDATE `users` SET `foo` = ? WHERE `bar` = ?", sql);
@@ -86,9 +88,10 @@ impl<'a> Update<'a> {
     ///
     /// ```rust
     /// # use xiayu::{ast::*, visitors::{Visitor, Sqlite}};
+    /// # use entities::Bar;
     /// # fn main() -> Result<(), xiayu::error::Error> {
-    /// let select = Select::from_table("bars").column("id").so_that("uniq_val".equals(3));
-    /// let query = Update::table("users").set("foo", 1).so_that("bar".equals(select));
+    /// let select = Select::from_table(Bar::table()).column(Bar::id).so_that(Bar::uniq_val.equals(3));
+    /// let query = Update::table(User::table()).set(User::foo, 1).so_that(User::bar.equals(select));
     /// let (sql, params) = Sqlite::build(query)?;
     ///
     /// assert_eq!(

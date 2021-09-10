@@ -29,7 +29,7 @@ macro_rules! values {
 ///
 /// ``` rust
 /// # use entities::{Cat, Dog};
-/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
+/// # use xiayu::{prelude::*, col, val, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///
@@ -63,7 +63,7 @@ macro_rules! col {
 ///
 /// ``` rust
 /// # use entities::{Cat, Dog};
-/// # use xiayu::{col, val, ast::*, visitors::{Visitor, Sqlite}};
+/// # use xiayu::{col, val, prelude::*, visitors::{Visitor, Sqlite}};
 /// # fn main() -> Result<(), xiayu::error::Error> {
 /// let join = Dog::table().on(Dog::slave_id.equals(Cat::master_id));
 ///

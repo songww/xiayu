@@ -409,7 +409,7 @@ mod tests {
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
+            vec![Value::int32(1), Value::int32(2), Value::int32(3), Value::int32(4),],
             params
         );
     }
@@ -429,7 +429,7 @@ mod tests {
 
         assert_eq!(expected_sql, sql);
         assert_eq!(
-            vec![Value::I32(1), Value::I32(2), Value::I32(3), Value::I32(4),],
+            vec![Value::int32(1), Value::int32(2), Value::int32(3), Value::int32(4),],
             params
         );
     }
@@ -457,7 +457,7 @@ mod tests {
         let expected_sql = "SELECT `test`.* FROM `test` WHERE `test`.`id1` IN (?,?)";
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(vec![Value::I32(1), Value::I32(2),], params)
+        assert_eq!(vec![Value::int32(1), Value::int32(2),], params)
     }
 
     #[test]
@@ -597,7 +597,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND `naukio`.`age` < ? AND `naukio`.`paw` = ?)";
 
-        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10.into()), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -617,7 +617,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (`naukio`.`word` = ? AND (`naukio`.`age` < ? AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10.into()), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -636,7 +636,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?)";
 
-        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -656,7 +656,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = Naukio::word
             .equals("meow")
@@ -677,7 +677,7 @@ mod tests {
         let expected_sql =
             "SELECT `naukio`.* FROM `naukio` WHERE (NOT ((`naukio`.`word` = ? OR `naukio`.`age` < ?) AND `naukio`.`paw` = ?))";
 
-        let expected_params = vec![Value::Text("meow"), Value::I32(10), Value::Text("warm")];
+        let expected_params = vec![Value::text("meow"), Value::int32(10), Value::text("warm")];
 
         let conditions = ConditionTree::not(
             Naukio::word
@@ -730,7 +730,7 @@ mod tests {
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(default_params(vec![Value::Boolean(true),]), params);
+        assert_eq!(default_params(vec![Value::boolean(true),]), params);
     }
 
     #[test]
@@ -759,7 +759,7 @@ mod tests {
         let (sql, params) = Sqlite::build(query).unwrap();
 
         assert_eq!(expected_sql, sql);
-        assert_eq!(default_params(vec![Value::Boolean(true),]), params);
+        assert_eq!(default_params(vec![Value::boolean(true),]), params);
     }
 
     #[derive(Entity)]
@@ -863,7 +863,7 @@ mod tests {
     #[test]
     fn test_raw_bytes() {
         let (sql, params) =
-            Sqlite::build(Select::default().value(Value::Bytes(vec![1, 2, 3]).raw())).unwrap();
+            Sqlite::build(Select::default().value(Value::bytes(vec![1, 2, 3]).raw())).unwrap();
         assert_eq!("SELECT x'010203'", sql);
         assert!(params.is_empty());
     }
@@ -902,7 +902,7 @@ mod tests {
     #[test]
     #[cfg(feature = "uuid")]
     fn test_raw_uuid() {
-        let uuid = sqlx::types::Uuid::new_v4();
+        let uuid = uuid_::Uuid::new_v4();
         let (sql, params) = Sqlite::build(Select::default().value(uuid.raw())).unwrap();
 
         assert_eq!(
